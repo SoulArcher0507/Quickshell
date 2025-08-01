@@ -62,7 +62,24 @@ Variants {
                             return client.workspaceId === id;
                         if (client.workspaceID !== undefined)
                             return client.workspaceID === id;
+                        if (client.workspace && client.workspace.ID !== undefined)
+                            return client.workspace.ID === id;
                         return false;
+                    }
+
+                    // return the best icon path for a client if available
+                    function clientIcon(client) {
+                        if (!client)
+                            return "";
+                        if (client.icon)
+                            return client.icon;
+                        if (client.iconPath)
+                            return client.iconPath;
+                        if (client.appIcon)
+                            return client.appIcon;
+                        if (client.classIcon)
+                            return client.classIcon;
+                        return "";
                     }
                     
                     // Real Hyprland workspace data
@@ -108,7 +125,8 @@ Variants {
                                         visible: clientMatchesWorkspace(modelData, workspaceId)
                                         width: 14
                                         height: 14
-                                        source: modelData.icon ? modelData.icon : ""
+                                        source: clientIcon(modelData)
+
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
                                     }

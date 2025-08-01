@@ -51,36 +51,6 @@ Variants {
                         leftMargin: 16
                     }
                     spacing: 8
-
-                    // helper to check if a client belongs to a workspace
-                    function clientMatchesWorkspace(client, id) {
-                        if (!client)
-                            return false;
-                        if (client.workspace && client.workspace.id !== undefined)
-                            return client.workspace.id === id;
-                        if (client.workspaceId !== undefined)
-                            return client.workspaceId === id;
-                        if (client.workspaceID !== undefined)
-                            return client.workspaceID === id;
-                        if (client.workspace && client.workspace.ID !== undefined)
-                            return client.workspace.ID === id;
-                        return false;
-                    }
-
-                    // return the best icon path for a client if available
-                    function clientIcon(client) {
-                        if (!client)
-                            return "";
-                        if (client.icon)
-                            return client.icon;
-                        if (client.iconPath)
-                            return client.iconPath;
-                        if (client.appIcon)
-                            return client.appIcon;
-                        if (client.classIcon)
-                            return client.classIcon;
-                        return "";
-                    }
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -97,40 +67,17 @@ Variants {
                             border.color: "#555555"
                             border.width: 1
 
-                            // id del workspace corrente per filtrare i client
-                            property int workspaceId: modelData.id
-
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: Hyprland.dispatch("workspace " + modelData.id)
                             }
 
-                            Row {
-                                id: workspaceContent
+                            Text {
+                                text: modelData.id
                                 anchors.centerIn: parent
-                                spacing: 4
-
-                                Text {
-                                    text: workspaceId
-                                    color: modelData.active ? "#ffffff" : "#cccccc"
-                                    font.pixelSize: 12
-                                    font.family: "Inter, sans-serif"
-                                }
-
-                                Repeater {
-                                    model: Hyprland.clients
-
-                                    delegate: Image {
-                                        // show icon only if the client belongs to this workspace
-                                        visible: clientMatchesWorkspace(modelData, workspaceId)
-                                        width: 14
-                                        height: 14
-                                        source: clientIcon(modelData)
-
-                                        fillMode: Image.PreserveAspectFit
-                                        smooth: true
-                                    }
-                                }
+                                color: modelData.active ? "#ffffff" : "#cccccc"
+                                font.pixelSize: 12
+                                font.family: "Inter, sans-serif"
                             }
                         }
                     }

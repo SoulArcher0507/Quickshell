@@ -115,21 +115,19 @@ Item {
                     }
                 }
 
-                // ToolTip shown when hovering a tray icon
+                // ToolTip shown when hovering a tray icon. The tooltip is
+                // anchored below the icon and kept within the bar window so
+                // it remains visible even when extending beyond the bar's
+                // boundaries.
                 ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
                 ToolTip.text: trayItem.title
                 ToolTip.delay: 200   // delay before showing the tooltip
 
-                // Place the tooltip below the tray icon and draw it outside
-                // of the bar so it doesn't get clipped
-                ToolTip.parent: Overlay.overlay
-                ToolTip.x: trayMouseArea.mapToItem(Overlay.overlay,
-                                                 (trayMouseArea.width - ToolTip.implicitWidth) / 2,
-                                                 0).x
-                ToolTip.y: trayMouseArea.mapToItem(Overlay.overlay,
-                                                 0,
-                                                 trayMouseArea.height + 4).y
-
+                // Anchor tooltip under the icon within the bar window
+                ToolTip.parent: systemTrayWidget.bar
+                ToolTip.x: trayMouseArea.x + (trayMouseArea.width - ToolTip.implicitWidth) / 2
+                ToolTip.y: trayMouseArea.y + trayMouseArea.height + 4
+                
                 ToolTip.background: Rectangle {
                     color: backgroundPrimary
                     border.color: surfaceVariant

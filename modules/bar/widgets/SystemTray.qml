@@ -152,7 +152,7 @@ Item {
         text: "No tray items"
         color: surfaceVariant
         font.pixelSize: 10
-        font.family: "Cascadia Mono Nerd Font"
+        font.family: "CaskaydiaMono Nerd Font"
         opacity: 0.7
     }
 } 

@@ -81,7 +81,7 @@ Variants {
                                 anchors.centerIn: parent
                                 color: modelData.active ? "#ffffff" : "#cccccc"
                                 font.pixelSize: 12
-                                font.family: "Cascadia Mono Nerd Font"
+                                font.family: "CaskaydiaMono Nerd Font"
                             }
                         }
                     }
@@ -131,7 +131,7 @@ Variants {
                         text: "" // power icon
                         color: "#cccccc"
                         font.pixelSize: 12
-                        font.family: "Cascadia Mono Nerd Font"
+                        font.family: "CaskaydiaMono Nerd Font"
                     }
                 }
 
@@ -149,7 +149,7 @@ Variants {
                     text: currentTime
                     color: "#ffffff"
                     font.pixelSize: 14
-                    font.family: "Cascadia Mono Nerd Font"
+                    font.family: "CaskaydiaMono Nerd Font"
                     
                     // Update time every second
                     Timer {
@@ -158,7 +158,7 @@ Variants {
                         repeat: true
                         onTriggered: {
                             var now = new Date()
-                            timeDisplay.currentTime = Qt.formatDate(now, "ddd dd MMM") + " " + Qt.formatTime(now, "hh:mm:ss")
+                            timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
                         }
                     }
                     

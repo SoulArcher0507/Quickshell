@@ -125,10 +125,10 @@ Item {
                     width: tooltipText.width + 16 * scaleFactor
                     height: tooltipText.height + 12 * scaleFactor
                     
-                    // Position tooltip above the icon
-                    anchors.bottom: parent.top
+                    // Position tooltip below the icon
+                    anchors.top: parent.bottom
                     anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottomMargin: 8
+                    anchors.topMargin: 8
                     
                     Text {
                         id: tooltipText

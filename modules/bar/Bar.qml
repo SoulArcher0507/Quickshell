@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import "widgets/"
-import LayerShellQt 1.0
+import org.kde.layershell 1.0
 
 // Create a proper panel window
 Variants {
@@ -20,12 +20,7 @@ Variants {
             // we can then set the window's screen to the injected property
             screen: modelData
 
-            LayerSurface {
-                anchors.fill: parent
-                window: panel
-                layer: LayerSurface.LayerTop
-                scope: "panel"
-            }
+
         
             
             // Panel configuration - span full width
@@ -49,7 +44,7 @@ Variants {
                 color: "transparent"
                 radius: 0  // Full width bar without rounded corners
                 border.color: "#333333"
-                border.width: 1
+                border.width: 0
 
                 // Workspaces on the far left - connected to Hyprland
                 Row {

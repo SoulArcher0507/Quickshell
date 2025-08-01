@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import "widgets/"
+import LayerShellQt 1.0
 
 // Create a proper panel window
 Variants {
@@ -11,12 +12,20 @@ Variants {
     delegate: Component {
         PanelWindow {
             id: panel
+            color: "transparent"
             // the screen from the screens list will be injected into this
             // property
             required property var modelData
 
             // we can then set the window's screen to the injected property
             screen: modelData
+
+            LayerSurface {
+                anchors.fill: parent
+                window: panel
+                layer: LayerSurface.LayerTop
+                scope: "panel"
+            }
         
             
             // Panel configuration - span full width
@@ -37,7 +46,7 @@ Variants {
             Rectangle {
                 id: bar
                 anchors.fill: parent
-                color: "#1a1a1a"  // Dark background
+                color: "transparent"
                 radius: 0  // Full width bar without rounded corners
                 border.color: "#333333"
                 border.width: 1

@@ -51,6 +51,19 @@ Variants {
                         leftMargin: 16
                     }
                     spacing: 8
+
+                    // helper to check if a client belongs to a workspace
+                    function clientMatchesWorkspace(client, id) {
+                        if (!client)
+                            return false;
+                        if (client.workspace && client.workspace.id !== undefined)
+                            return client.workspace.id === id;
+                        if (client.workspaceId !== undefined)
+                            return client.workspaceId === id;
+                        if (client.workspaceID !== undefined)
+                            return client.workspaceID === id;
+                        return false;
+                    }
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -67,17 +80,39 @@ Variants {
                             border.color: "#555555"
                             border.width: 1
 
+                            // id del workspace corrente per filtrare i client
+                            property int workspaceId: modelData.id
+
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: Hyprland.dispatch("workspace " + modelData.id)
                             }
 
-                            Text {
-                                text: modelData.id
+                            Row {
+                                id: workspaceContent
                                 anchors.centerIn: parent
-                                color: modelData.active ? "#ffffff" : "#cccccc"
-                                font.pixelSize: 12
-                                font.family: "Inter, sans-serif"
+                                spacing: 4
+
+                                Text {
+                                    text: workspaceId
+                                    color: modelData.active ? "#ffffff" : "#cccccc"
+                                    font.pixelSize: 12
+                                    font.family: "Inter, sans-serif"
+                                }
+
+                                Repeater {
+                                    model: Hyprland.clients
+
+                                    delegate: Image {
+                                        // show icon only if the client belongs to this workspace
+                                        visible: clientMatchesWorkspace(modelData, workspaceId)
+                                        width: 14
+                                        height: 14
+                                        source: modelData.icon ? modelData.icon : ""
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                    }
+                                }
                             }
                         }
                     }

@@ -1,22 +1,23 @@
 import QtQuick
+import QtQuick.Controls 2.15
 import Quickshell
 import Quickshell.Services.SystemTray
 
 // System tray widget that displays system tray icons
 Item {
     id: systemTrayWidget
-    
+
     // Required property for the bar window reference
     required property var bar
     // Scale factor to size the tray items
     property real scaleFactor: 1.0
-    
+
     // Dark theme colors matching the bar theme
     readonly property color surfaceVariant: "#333333"
     readonly property color accentPrimary: "#4a9eff"
     readonly property color textPrimary: "#ffffff"
     readonly property color backgroundPrimary: "#1a1a1a"
-    
+
     readonly property int baseIconSize: 22
     readonly property int baseIconSpacing: 8
     readonly property int baseIconPadding: 4
@@ -24,31 +25,31 @@ Item {
     readonly property int iconSize: baseIconSize * scaleFactor
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
     readonly property int iconPadding: baseIconPadding * scaleFactor
-    
+
     // Calculate width based on number of tray items
     width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
     height: iconSize + iconPadding * 2
-    
+
     // Row to hold all system tray icons
     Row {
         id: trayRow
         anchors.centerIn: parent
         spacing: iconSpacing
-        
+
         Repeater {
             model: SystemTray.items
-            
+
             // Individual system tray icon
             MouseArea {
                 id: trayMouseArea
-                
+
                 property SystemTrayItem trayItem: modelData
-                
+
                 width: iconSize
                 height: iconSize
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 hoverEnabled: true
-                
+
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.LeftButton) {
                         trayItem.activate()
@@ -60,15 +61,15 @@ Item {
                         trayItem.secondaryActivate()
                     }
                 }
-                
+
                 onWheel: function(wheel) {
                     trayItem.scroll(wheel.angleDelta.x, wheel.angleDelta.y)
                 }
-                
+
                 // Context menu anchor
                 QsMenuAnchor {
                     id: menuAnchor
-                    
+
                     menu: trayItem.menu
                     anchor.window: systemTrayWidget.bar
                     anchor.rect.x: trayMouseArea.x + systemTrayWidget.x
@@ -77,14 +78,14 @@ Item {
                     anchor.rect.height: trayMouseArea.height
                     anchor.edges: Edges.Bottom
                 }
-                
+
                 // Background rectangle with hover effect
                 Rectangle {
                     id: backgroundRect
                     anchors.fill: parent
                     color: trayMouseArea.containsMouse ? surfaceVariant : "transparent"
                     radius: 4
-                    
+
                     Behavior on color {
                         ColorAnimation {
                             duration: 200
@@ -92,7 +93,7 @@ Item {
                         }
                     }
                 }
-                
+
                 // Icon image
                 Image {
                     id: iconImage
@@ -102,7 +103,7 @@ Item {
                     source: trayItem.icon
                     fillMode: Image.PreserveAspectFit
                     smooth: true
-                    
+
                     // Fallback text if icon fails to load
                     Text {
                         anchors.centerIn: parent
@@ -113,31 +114,16 @@ Item {
                         visible: parent.status === Image.Error || parent.status === Image.Null
                     }
                 }
-                
-                // Tooltip
+
+                // ToolTip attachable
+                ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
+                ToolTip.text: trayItem.title
+                ToolTip.delay: 200   // ms di ritardo prima di mostrare
                 Rectangle {
-                    id: tooltip
-                    visible: trayMouseArea.containsMouse && trayItem.title && trayItem.title.length > 0
                     color: backgroundPrimary
                     border.color: surfaceVariant
                     border.width: 1 * scaleFactor
                     radius: 6
-                    width: tooltipText.width + 16 * scaleFactor
-                    height: tooltipText.height + 12 * scaleFactor
-                    
-                    // Position tooltip below the icon
-                    anchors.top: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.topMargin: 8
-                    
-                    Text {
-                        id: tooltipText
-                        anchors.centerIn: parent
-                        text: trayItem.title || ""
-                        color: textPrimary
-                        font.pixelSize: 11 * scaleFactor
-                    }
-                    
                     // Fade in/out animation
                     opacity: trayMouseArea.containsMouse ? 1.0 : 0.0
                     Behavior on opacity {
@@ -150,7 +136,7 @@ Item {
             }
         }
     }
-    
+
     // Show a placeholder when no system tray items are available
 //    Text {
 //        anchors.centerIn: parent
@@ -161,4 +147,4 @@ Item {
 //        font.family: "CaskaydiaMono Nerd Font"
 //        opacity: 0.7
 //    }
-} 
+}

@@ -51,6 +51,19 @@ Variants {
                         leftMargin: 16
                     }
                     spacing: 8
+
+                    // helper to check if a client belongs to a workspace
+                    function clientMatchesWorkspace(client, id) {
+                        if (!client)
+                            return false;
+                        if (client.workspace && client.workspace.id !== undefined)
+                            return client.workspace.id === id;
+                        if (client.workspaceId !== undefined)
+                            return client.workspaceId === id;
+                        if (client.workspaceID !== undefined)
+                            return client.workspaceID === id;
+                        return false;
+                    }
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -91,11 +104,13 @@ Variants {
                                     model: Hyprland.clients
 
                                     delegate: Image {
-                                        visible: modelData.workspace && modelData.workspace.id === workspaceId
+                                        // show icon only if the client belongs to this workspace
+                                        visible: clientMatchesWorkspace(modelData, workspaceId)
                                         width: 14
                                         height: 14
                                         source: modelData.icon ? modelData.icon : ""
                                         fillMode: Image.PreserveAspectFit
+                                        smooth: true
                                     }
                                 }
                             }

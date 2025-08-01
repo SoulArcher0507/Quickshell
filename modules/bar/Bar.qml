@@ -30,7 +30,11 @@ Variants {
                 right: true
             }
             
-            implicitHeight: 45
+            // Height of the panel
+            implicitHeight: 50
+
+            // Global scale used by widgets inside the bar
+            readonly property real scaleFactor: implicitHeight / 45
             margins {
                 top: 0
                 left: 0
@@ -52,9 +56,9 @@ Variants {
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
-                        leftMargin: 16
+                        leftMargin: 16 * panel.scaleFactor
                     }
-                    spacing: 8
+                    spacing: 8 * panel.scaleFactor
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -64,12 +68,12 @@ Variants {
                             // mostra solo i workspace il cui monitor corrisponde a questo screen
                             visible: modelData.monitor.id === Hyprland.monitorFor(screen).id
 
-                            width: 30
-                            height: 24
-                            radius: 8
+                            width: 30 * panel.scaleFactor
+                            height: 24 * panel.scaleFactor
+                            radius: 8 * panel.scaleFactor
                             color: modelData.active ? "#4a9eff" : "#333333"
                             border.color: "#555555"
-                            border.width: 1
+                            border.width: 1 * panel.scaleFactor
 
                             MouseArea {
                                 anchors.fill: parent
@@ -80,7 +84,7 @@ Variants {
                                 text: modelData.id
                                 anchors.centerIn: parent
                                 color: modelData.active ? "#ffffff" : "#cccccc"
-                                font.pixelSize: 12
+                                font.pixelSize: 12 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
                         }
@@ -91,7 +95,7 @@ Variants {
                         visible: Hyprland.workspaces.length === 0
                         text: "No workspaces"
                         color: "#ffffff"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * panel.scaleFactor
                     }
                 }
 
@@ -99,6 +103,7 @@ Variants {
                 SystemTray {
                     id: systemTrayWidget
                     bar: panel  // Pass the panel window reference
+                    scaleFactor: panel.scaleFactor
                     anchors {
                         right: logoutButton.left
                         verticalCenter: parent.verticalCenter
@@ -109,16 +114,16 @@ Variants {
                 // Button to trigger wlogout between tray and clock
                 Rectangle {
                     id: logoutButton
-                    width: 30
-                    height: 24
-                    radius: 10
+                    width: 30 * panel.scaleFactor
+                    height: 24 * panel.scaleFactor
+                    radius: 10 * panel.scaleFactor
                     color: "#333333"
                     border.color: "#555555"
-                    border.width: 1
+                    border.width: 1 * panel.scaleFactor
                     anchors {
                         right: timeDisplay.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 16
+                        rightMargin: 16 * panel.scaleFactor
                     }
 
                     MouseArea {
@@ -130,7 +135,7 @@ Variants {
                         anchors.centerIn: parent
                         text: "" // power icon
                         color: "#cccccc"
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * panel.scaleFactor
                         font.family: "CaskaydiaMono Nerd Font"
                     }
                 }
@@ -141,14 +146,14 @@ Variants {
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 16
+                        rightMargin: 16 * panel.scaleFactor
                     }
                     
                     property string currentTime: ""
                     
                     text: currentTime
                     color: "#ffffff"
-                    font.pixelSize: 14
+                    font.pixelSize: 14 * panel.scaleFactor
                     font.family: "CaskaydiaMono Nerd Font"
                     
                     // Update time every second

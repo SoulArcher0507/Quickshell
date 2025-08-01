@@ -114,17 +114,17 @@ Variants {
                     anchors {
                         right: timeDisplay.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 8
+                        rightMargin: 16
                     }
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: Hyprland.dispatch("exec wlogout")
+                        onClicked: Hyprland.dispatch("exec ~/.config/hypr/scripts/wlogout.sh")
                     }
 
                     Text {
                         anchors.centerIn: parent
-                        text: "\u23FB" // power icon
+                        text: "" // power icon
                         color: "#cccccc"
                         font.pixelSize: 12
                         font.family: "Inter, sans-serif"

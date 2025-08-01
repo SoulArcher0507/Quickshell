@@ -97,8 +97,8 @@ Item {
                 Image {
                     id: iconImage
                     anchors.centerIn: parent
-                    width: iconSize - 4
-                    height: iconSize - 4
+                    width: iconSize - 2
+                    height: iconSize - 2
                     source: trayItem.icon
                     fillMode: Image.PreserveAspectFit
                     smooth: true
@@ -152,13 +152,13 @@ Item {
     }
     
     // Show a placeholder when no system tray items are available
-    Text {
-        anchors.centerIn: parent
-        visible: SystemTray.items.length === 0
-        text: "No tray items"
-        color: surfaceVariant
-        font.pixelSize: 10 * scaleFactor
-        font.family: "CaskaydiaMono Nerd Font"
-        opacity: 0.7
-    }
+//    Text {
+//        anchors.centerIn: parent
+//        visible: SystemTray.items.length === 0
+//        text: "No tray items"
+//        color: surfaceVariant
+//        font.pixelSize: 10 * scaleFactor
+//        font.family: "CaskaydiaMono Nerd Font"
+//        opacity: 0.7
+//    }
 } 

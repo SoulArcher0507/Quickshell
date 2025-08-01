@@ -31,7 +31,7 @@ Variants {
             }
             
             // Height of the panel
-            implicitHeight: 50
+            implicitHeight: 47
 
             // Global scale used by widgets inside the bar
             readonly property real scaleFactor: implicitHeight / 45
@@ -110,6 +110,7 @@ Variants {
                         rightMargin: 0
                     }
                 }
+
 
                 // Button to trigger wlogout between tray and clock
                 Rectangle {

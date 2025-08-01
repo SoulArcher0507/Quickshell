@@ -37,20 +37,33 @@ Variants {
             Rectangle {
                 id: bar
                 anchors.fill: parent
-                color: "#1a1a1a"  // Dark background
-                radius: 0  // Full width bar without rounded corners
+                color: "transparent"  // Make bar background transparent
+                radius: 0
                 border.color: "#333333"
                 border.width: 1
 
                 // Workspaces on the far left - connected to Hyprland
-                Row {
-                    id: workspacesRow
+                Rectangle {
+                    id: workspacesContainer
+                    radius: 8
+                    color: "#1a1a1a"
+                    border.color: "#555555"
+                    border.width: 1
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
                         leftMargin: 16
                     }
-                    spacing: 8
+                    Row {
+                        id: workspacesRow
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: 8
+                            rightMargin: 8
+                        }
+                        spacing: 8
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -90,15 +103,28 @@ Variants {
                         font.pixelSize: 12
                     }
                 }
+            }
 
 
-                SystemTray {
-                    id: systemTrayWidget
-                    bar: panel  // Pass the panel window reference
+                Rectangle {
+                    id: systemTrayContainer
+                    radius: 8
+                    color: "#1a1a1a"
+                    border.color: "#555555"
+                    border.width: 1
                     anchors {
                         right: logoutButton.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 0
+                        rightMargin: 8
+                    }
+
+                    implicitWidth: systemTrayWidget.width + 8
+                    implicitHeight: systemTrayWidget.height + 4
+
+                    SystemTray {
+                        id: systemTrayWidget
+                        bar: panel  // Pass the panel window reference
+                        anchors.centerIn: parent
                     }
                 }
 
@@ -132,20 +158,31 @@ Variants {
                 }
 
                 // Time on the far right
-                Text {
-                    id: timeDisplay
+                Rectangle {
+                    id: timeContainer
+                    radius: 8
+                    color: "#1a1a1a"
+                    border.color: "#555555"
+                    border.width: 1
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16
                     }
-                    
-                    property string currentTime: ""
-                    
-                    text: currentTime
-                    color: "#ffffff"
-                    font.pixelSize: 14
-                    font.family: "Inter, sans-serif"
+
+                    implicitWidth: timeDisplay.implicitWidth + 16
+                    implicitHeight: timeDisplay.implicitHeight + 8
+
+                    Text {
+                        id: timeDisplay
+                        anchors.centerIn: parent
+
+                        property string currentTime: ""
+
+                        text: currentTime
+                        color: "#ffffff"
+                        font.pixelSize: 14
+                        font.family: "Inter, sans-serif"
                     
                     // Update time every second
                     Timer {

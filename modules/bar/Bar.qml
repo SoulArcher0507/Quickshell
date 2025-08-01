@@ -81,7 +81,7 @@ Variants {
                                 anchors.centerIn: parent
                                 color: modelData.active ? "#ffffff" : "#cccccc"
                                 font.pixelSize: 12
-                                font.family: "Inter, sans-serif"
+                                font.family: "0xProto Nerd Font"
                             }
                         }
                     }
@@ -131,7 +131,7 @@ Variants {
                         text: "" // power icon
                         color: "#cccccc"
                         font.pixelSize: 12
-                        font.family: "Inter, fira-sans-semibold"
+                        font.family: "0xProto Nerd Font"
                     }
                 }
 
@@ -149,7 +149,7 @@ Variants {
                     text: currentTime
                     color: "#ffffff"
                     font.pixelSize: 14
-                    font.family: "Inter, sans-serif"
+                    font.family: "0xProto Nerd Font"
                     
                     // Update time every second
                     Timer {

@@ -115,34 +115,15 @@ Item {
                     }
                 }
 
-                // ToolTip shown when hovering a tray icon
+                // ToolTip attachable
                 ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
                 ToolTip.text: trayItem.title
-                ToolTip.delay: 200   // delay before showing the tooltip
-
-                // Place the tooltip below the tray icon and draw it outside
-                // of the bar so it doesn't get clipped
-                ToolTip.parent: Overlay.overlay
-                ToolTip.x: trayMouseArea.mapToItem(Overlay.overlay,
-                                                 (trayMouseArea.width - ToolTip.implicitWidth) / 2,
-                                                 0).x
-                ToolTip.y: trayMouseArea.mapToItem(Overlay.overlay,
-                                                 0,
-                                                 trayMouseArea.height + 4).y
-
-                ToolTip.background: Rectangle {
+                ToolTip.delay: 200   // ms di ritardo prima di mostrare
+                Rectangle {
                     color: backgroundPrimary
                     border.color: surfaceVariant
                     border.width: 1 * scaleFactor
                     radius: 6
-                    // Fade in/out animation
-                    opacity: trayMouseArea.containsMouse ? 1.0 : 0.0
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 200
-                            easing.type: Easing.OutCubic
-                        }
-                    }
                 }
             }
         }

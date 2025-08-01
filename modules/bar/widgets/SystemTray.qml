@@ -8,6 +8,8 @@ Item {
     
     // Required property for the bar window reference
     required property var bar
+    // Scale factor to size the tray items
+    property real scaleFactor: 1.0
     
     // Dark theme colors matching the bar theme
     readonly property color surfaceVariant: "#333333"
@@ -15,9 +17,13 @@ Item {
     readonly property color textPrimary: "#ffffff"
     readonly property color backgroundPrimary: "#1a1a1a"
     
-    readonly property int iconSize: 22
-    readonly property int iconSpacing: 8
-    readonly property int iconPadding: 4
+    readonly property int baseIconSize: 22
+    readonly property int baseIconSpacing: 8
+    readonly property int baseIconPadding: 4
+
+    readonly property int iconSize: baseIconSize * scaleFactor
+    readonly property int iconSpacing: baseIconSpacing * scaleFactor
+    readonly property int iconPadding: baseIconPadding * scaleFactor
     
     // Calculate width based on number of tray items
     width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
@@ -102,7 +108,7 @@ Item {
                         anchors.centerIn: parent
                         text: trayItem.title ? trayItem.title.charAt(0).toUpperCase() : "?"
                         color: textPrimary
-                        font.pixelSize: 12
+                        font.pixelSize: 12 * scaleFactor
                         font.bold: true
                         visible: parent.status === Image.Error || parent.status === Image.Null
                     }
@@ -114,10 +120,10 @@ Item {
                     visible: trayMouseArea.containsMouse && trayItem.title && trayItem.title.length > 0
                     color: backgroundPrimary
                     border.color: surfaceVariant
-                    border.width: 1
+                    border.width: 1 * scaleFactor
                     radius: 6
-                    width: tooltipText.width + 16
-                    height: tooltipText.height + 12
+                    width: tooltipText.width + 16 * scaleFactor
+                    height: tooltipText.height + 12 * scaleFactor
                     
                     // Position tooltip above the icon
                     anchors.bottom: parent.top
@@ -129,7 +135,7 @@ Item {
                         anchors.centerIn: parent
                         text: trayItem.title || ""
                         color: textPrimary
-                        font.pixelSize: 11
+                        font.pixelSize: 11 * scaleFactor
                     }
                     
                     // Fade in/out animation
@@ -151,7 +157,7 @@ Item {
         visible: SystemTray.items.length === 0
         text: "No tray items"
         color: surfaceVariant
-        font.pixelSize: 10
+        font.pixelSize: 10 * scaleFactor
         font.family: "CaskaydiaMono Nerd Font"
         opacity: 0.7
     }

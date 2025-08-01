@@ -96,13 +96,41 @@ Variants {
                     id: systemTrayWidget
                     bar: panel  // Pass the panel window reference
                     anchors {
-                        right: timeDisplay.left
+                        right: logoutButton.left
                         verticalCenter: parent.verticalCenter
                         rightMargin: 0
                     }
                 }
 
-                
+                // Button to trigger wlogout between tray and clock
+                Rectangle {
+                    id: logoutButton
+                    width: 32
+                    height: 24
+                    radius: 12
+                    color: "#333333"
+                    border.color: "#555555"
+                    border.width: 1
+                    anchors {
+                        right: timeDisplay.left
+                        verticalCenter: parent.verticalCenter
+                        rightMargin: 8
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: Hyprland.dispatch("exec wlogout")
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\u23FB" // power icon
+                        color: "#cccccc"
+                        font.pixelSize: 12
+                        font.family: "Inter, sans-serif"
+                    }
+                }
+
                 // Time on the far right
                 Text {
                     id: timeDisplay

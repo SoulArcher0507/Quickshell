@@ -67,17 +67,37 @@ Variants {
                             border.color: "#555555"
                             border.width: 1
 
+                            // id del workspace corrente per filtrare i client
+                            property int workspaceId: modelData.id
+
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: Hyprland.dispatch("workspace " + modelData.id)
                             }
 
-                            Text {
-                                text: modelData.id
+                            Row {
+                                id: workspaceContent
                                 anchors.centerIn: parent
-                                color: modelData.active ? "#ffffff" : "#cccccc"
-                                font.pixelSize: 12
-                                font.family: "Inter, sans-serif"
+                                spacing: 4
+
+                                Text {
+                                    text: workspaceId
+                                    color: modelData.active ? "#ffffff" : "#cccccc"
+                                    font.pixelSize: 12
+                                    font.family: "Inter, sans-serif"
+                                }
+
+                                Repeater {
+                                    model: Hyprland.clients
+
+                                    delegate: Image {
+                                        visible: modelData.workspace && modelData.workspace.id === workspaceId
+                                        width: 14
+                                        height: 14
+                                        source: modelData.icon ? modelData.icon : ""
+                                        fillMode: Image.PreserveAspectFit
+                                    }
+                                }
                             }
                         }
                     }

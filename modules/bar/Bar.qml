@@ -26,7 +26,7 @@ Variants {
                 right: true
             }
             
-            implicitHeight: 40
+            implicitHeight: 45
             margins {
                 top: 0
                 left: 0
@@ -37,33 +37,20 @@ Variants {
             Rectangle {
                 id: bar
                 anchors.fill: parent
-                color: "transparent"  // Make bar background transparent
-                radius: 0
+                color: "#1a1a1a"  // Dark background
+                radius: 0  // Full width bar without rounded corners
                 border.color: "#333333"
                 border.width: 1
 
                 // Workspaces on the far left - connected to Hyprland
-                Rectangle {
-                    id: workspacesContainer
-                    radius: 8
-                    color: "#1a1a1a"
-                    border.color: "#555555"
-                    border.width: 1
+                Row {
+                    id: workspacesRow
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
                         leftMargin: 16
                     }
-                    Row {
-                        id: workspacesRow
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                            leftMargin: 8
-                            rightMargin: 8
-                        }
-                        spacing: 8
+                    spacing: 8
                     
                     // Real Hyprland workspace data
                     Repeater {
@@ -73,9 +60,9 @@ Variants {
                             // mostra solo i workspace il cui monitor corrisponde a questo screen
                             visible: modelData.monitor.id === Hyprland.monitorFor(screen).id
 
-                            width: 32
+                            width: 30
                             height: 24
-                            radius: 12
+                            radius: 8
                             color: modelData.active ? "#4a9eff" : "#333333"
                             border.color: "#555555"
                             border.width: 1
@@ -103,37 +90,24 @@ Variants {
                         font.pixelSize: 12
                     }
                 }
-            }
 
 
-                Rectangle {
-                    id: systemTrayContainer
-                    radius: 8
-                    color: "#1a1a1a"
-                    border.color: "#555555"
-                    border.width: 1
+                SystemTray {
+                    id: systemTrayWidget
+                    bar: panel  // Pass the panel window reference
                     anchors {
                         right: logoutButton.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 8
-                    }
-
-                    implicitWidth: systemTrayWidget.width + 8
-                    implicitHeight: systemTrayWidget.height + 4
-
-                    SystemTray {
-                        id: systemTrayWidget
-                        bar: panel  // Pass the panel window reference
-                        anchors.centerIn: parent
+                        rightMargin: 0
                     }
                 }
 
                 // Button to trigger wlogout between tray and clock
                 Rectangle {
                     id: logoutButton
-                    width: 32
+                    width: 30
                     height: 24
-                    radius: 12
+                    radius: 10
                     color: "#333333"
                     border.color: "#555555"
                     border.width: 1
@@ -153,36 +127,25 @@ Variants {
                         text: "" // power icon
                         color: "#cccccc"
                         font.pixelSize: 12
-                        font.family: "Inter, sans-serif"
+                        font.family: "Inter, fira-sans-semibold"
                     }
                 }
 
                 // Time on the far right
-                Rectangle {
-                    id: timeContainer
-                    radius: 8
-                    color: "#1a1a1a"
-                    border.color: "#555555"
-                    border.width: 1
+                Text {
+                    id: timeDisplay
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16
                     }
-
-                    implicitWidth: timeDisplay.implicitWidth + 16
-                    implicitHeight: timeDisplay.implicitHeight + 8
-
-                    Text {
-                        id: timeDisplay
-                        anchors.centerIn: parent
-
-                        property string currentTime: ""
-
-                        text: currentTime
-                        color: "#ffffff"
-                        font.pixelSize: 14
-                        font.family: "Inter, sans-serif"
+                    
+                    property string currentTime: ""
+                    
+                    text: currentTime
+                    color: "#ffffff"
+                    font.pixelSize: 14
+                    font.family: "Inter, sans-serif"
                     
                     // Update time every second
                     Timer {

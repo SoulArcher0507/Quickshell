@@ -126,6 +126,7 @@ Variants {
                                         width: 14
                                         height: 14
                                         source: clientIcon(modelData)
+
                                         fillMode: Image.PreserveAspectFit
                                         smooth: true
                                     }

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Services.SystemTray
 
@@ -24,11 +25,48 @@ Item {
     readonly property int iconSize: baseIconSize * scaleFactor
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
     readonly property int iconPadding: baseIconPadding * scaleFactor
-    
+
     // Calculate width based on number of tray items
     width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
     height: iconSize + iconPadding * 2
-    
+
+    // Hover handler covering the entire system tray area
+    HoverHandler {
+        id: trayHover
+    }
+
+    // Tooltip shown when hovering over the tray area
+    Rectangle {
+        id: trayTooltip
+        visible: trayHover.hovered
+        color: backgroundPrimary
+        border.color: surfaceVariant
+        border.width: 1 * scaleFactor
+        radius: 6
+        width: trayTooltipText.width + 16 * scaleFactor
+        height: trayTooltipText.height + 12 * scaleFactor
+        anchors.bottom: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottomMargin: 8
+        z: 100
+
+        Text {
+            id: trayTooltipText
+            anchors.centerIn: parent
+            text: qsTr("System Tray")
+            color: textPrimary
+            font.pixelSize: 11 * scaleFactor
+        }
+
+        opacity: trayHover.hovered ? 1.0 : 0.0
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
     // Row to hold all system tray icons
     Row {
         id: trayRow

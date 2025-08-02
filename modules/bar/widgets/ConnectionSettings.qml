@@ -102,20 +102,34 @@ Rectangle {
                 }
             }
 
-            Text {
-                text: "\uf24e"
-                color: "#ffffff"
-                font.pixelSize: 16
-                font.family: "CaskaydiaMono Nerd Font"
+            Rectangle {
+                width: 40
+                height: 24
+                radius: 12
+                color: "#333333"
                 anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    text: "\uf24e"
+                    color: "#ffffff"
+                    font.pixelSize: 16
+                    font.family: "CaskaydiaMono Nerd Font"
+                    anchors.centerIn: parent
+                }
             }
 
-            Text {
-                text: "\uf0e7"
-                color: "#ffffff"
-                font.pixelSize: 16
-                font.family: "CaskaydiaMono Nerd Font"
+            Rectangle {
+                width: 40
+                height: 24
+                radius: 12
+                color: "#333333"
                 anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    text: "\uf0e7"
+                    color: "#ffffff"
+                    font.pixelSize: 16
+                    font.family: "CaskaydiaMono Nerd Font"
+                    anchors.centerIn: parent
+                }
             }
         }
 
@@ -125,18 +139,25 @@ Rectangle {
             width: parent.width
             spacing: 8
 
-            Text {
-                id: volumeIcon
-                text: "\uf028"
-                color: "#ffffff"
-                font.pixelSize: 16
-                font.family: "CaskaydiaMono Nerd Font"
-                Layout.alignment: Qt.AlignVCenter
+            Rectangle {
+                width: 40
+                height: 24
+                radius: 12
+                color: "#333333"
+                anchors.verticalCenter: parent.verticalCenter                
+                Text {
+                    id: volumeIcon
+                    text: ""
+                    color: "#ffffff"
+                    font.pixelSize: 16
+                    font.family: "CaskaydiaMono Nerd Font"
+                    anchors.centerIn: parent
 
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: Hyprland.dispatch("exec pavucontrol")
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: Hyprland.dispatch("exec pavucontrol")
+                    }
                 }
             }
 
@@ -189,13 +210,20 @@ Rectangle {
             width: parent.width
             spacing: 8
 
-            Text {
-                id: brightnessIcon
-                text: "\uf185"
-                color: "#ffffff"
-                font.pixelSize: 16
-                font.family: "CaskaydiaMono Nerd Font"
-                Layout.alignment: Qt.AlignVCenter
+            Rectangle {
+                width: 40
+                height: 24
+                radius: 12
+                color: "#333333"
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    id: brightnessIcon
+                    text: "\uf185"
+                    color: "#ffffff"
+                    font.pixelSize: 16
+                    font.family: "CaskaydiaMono Nerd Font"
+                    anchors.centerIn: parent
+                }
             }
 
             Slider {

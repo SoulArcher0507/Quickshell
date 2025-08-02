@@ -122,8 +122,8 @@ Variants {
 
                     Rectangle{
                         id: trayButton
-                        width: 200 * panel.scaleFactor
-                        height: 30 * panel.scaleFactor
+                        width: systemTrayWidget.width
+                        height: systemTrayWidget.height
                         radius: 10 * panel.scaleFactor
                         color: "#333333"
                         border.color: "#555555"
@@ -137,11 +137,7 @@ Variants {
                             id: systemTrayWidget
                             bar: panel  // Pass the panel window reference
                             scaleFactor: panel.scaleFactor
-                            anchors {
-                                right: networkButton.left
-                                verticalCenter: parent.verticalCenter
-                                rightMargin: 0
-                            }
+                            anchors.centerIn: parent
                         }
                     }
 

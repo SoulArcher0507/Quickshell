@@ -27,14 +27,20 @@ Item {
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
     readonly property int iconPadding: baseIconPadding * scaleFactor
 
-    // Calculate width based on number of tray items
-    width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
+    // Calculate width based on number of tray items including padding
+    width: SystemTray.items.length > 0
+           ? SystemTray.items.length * (iconSize + iconSpacing) - iconSpacing + iconPadding * 2
+           : 0
     height: iconSize + iconPadding * 2
 
     // Row to hold all system tray icons
     Row {
         id: trayRow
-        anchors.centerIn: parent
+        anchors {
+            left: parent.left
+            verticalCenter: parent.verticalCenter
+            leftMargin: iconPadding
+        }
         spacing: iconSpacing
 
         Repeater {
@@ -67,14 +73,17 @@ Item {
                     trayItem.scroll(wheel.angleDelta.x, wheel.angleDelta.y)
                 }
 
+                // Global position for the context menu anchor
+                property point globalPos: mapToItem(systemTrayWidget.bar.contentItem, 0, 0)
+
                 // Context menu anchor
                 QsMenuAnchor {
                     id: menuAnchor
 
                     menu: trayItem.menu
                     anchor.window: systemTrayWidget.bar
-                    anchor.rect.x: trayMouseArea.x + systemTrayWidget.x
-                    anchor.rect.y: trayMouseArea.y + systemTrayWidget.y
+                    anchor.rect.x: trayMouseArea.globalPos.x
+                    anchor.rect.y: trayMouseArea.globalPos.y
                     anchor.rect.width: trayMouseArea.width
                     anchor.rect.height: trayMouseArea.height
                     anchor.edges: Edges.Bottom

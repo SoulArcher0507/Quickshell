@@ -11,7 +11,16 @@ Variants {
     id: bar
     model: Quickshell.screens;
 
-    
+    readonly property color moduleColor: "#333333"
+    readonly property color moduleBorderColor: "#555555"
+    readonly property color moduleFontColor: "#cccccc"
+
+    readonly property color workspaceActiveColor: "#4a9eff"
+    readonly property color workspaceInactiveColor: moduleColor
+    readonly property color workspaceActiveFontColor: "#ffffff"
+    readonly property color workspaceInactiveFontColor: moduleFontColor
+
+
     delegate: Component {
         Item {
             id: delegateRoot
@@ -29,7 +38,7 @@ Variants {
                 }
                 width: 300
                 visible: false
-                color: "#222222"
+                color: moduleColor
 
                 ConnectionSettings {
                     anchors.fill: parent
@@ -65,7 +74,7 @@ Variants {
                     anchors.fill: parent
                     color: "transparent"
                     radius: 0  // Full width bar without rounded corners
-                    border.color: "#333333"
+                    border.color: moduleBorderColor
                     border.width: 0
 
                     // Padding around all modules
@@ -92,8 +101,8 @@ Variants {
                                 width: 30 * panel.scaleFactor
                                 height: 30 * panel.scaleFactor
                                 radius: 10 * panel.scaleFactor
-                                color: modelData.active ? "#4a9eff" : "#333333"
-                                border.color: "#555555"
+                                color: modelData.active ? workspaceActiveColor : workspaceInactiveColor
+                                border.color: moduleBorderColor
                                 border.width: 1 * panel.scaleFactor
 
                                 MouseArea {
@@ -104,7 +113,7 @@ Variants {
                                 Text {
                                     text: modelData.id
                                     anchors.centerIn: parent
-                                    color: modelData.active ? "#ffffff" : "#cccccc"
+                                    color: modelData.active ? workspaceActiveFontColor : workspaceInactiveFontColor
                                     font.pixelSize: 12 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
                                 }
@@ -115,7 +124,7 @@ Variants {
                         Text {
                             visible: Hyprland.workspaces.length === 0
                             text: "No workspaces"
-                            color: "#ffffff"
+                            color: workspaceActiveFontColor
                             font.pixelSize: 12 * panel.scaleFactor
                         }
                     }
@@ -125,8 +134,8 @@ Variants {
                         width: systemTrayWidget.width
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: "#333333"
-                        border.color: "#555555"
+                        color: moduleColor
+                        border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors {
                             right: networkButton.left
@@ -151,8 +160,8 @@ Variants {
                         width: 55 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: "#333333"
-                        border.color: "#555555"
+                        color: moduleColor
+                        border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors {
                             right: logoutButton.left
@@ -167,12 +176,12 @@ Variants {
                             anchors.centerIn: parent
                             spacing: 4 * panel.scaleFactor
 
-                            Text {
-                                text: networkButton.networkIcon + "  "
-                                color: "#cccccc"
-                                font.pixelSize: 15 * panel.scaleFactor
-                                font.family: "CaskaydiaMono Nerd Font"
-                            }
+                                Text {
+                                    text: networkButton.networkIcon + "  "
+                                    color: moduleFontColor
+                                    font.pixelSize: 15 * panel.scaleFactor
+                                    font.family: "CaskaydiaMono Nerd Font"
+                                }
 
                         }
 
@@ -199,8 +208,8 @@ Variants {
                         width: 30 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: "#333333"
-                        border.color: "#555555"
+                        color: moduleColor
+                        border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors {
                             right: timeButton.left
@@ -216,20 +225,20 @@ Variants {
                         Text {
                             anchors.centerIn: parent
                             text: "" // power icon
-                            color: "#cccccc"
+                            color: moduleFontColor
                             font.pixelSize: 15 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
                         }
                     }
 
                     // Time on the far right
-                    Rectangle{
+                    Rectangle{ 
                         id: timeButton
                         width: 180 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
-                        color: "#333333"
-                        border.color: "#555555"
+                        color: moduleColor
+                        border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors {
                             right: parent.right
@@ -247,7 +256,7 @@ Variants {
                             property string currentTime: ""
 
                             text: currentTime
-                            color: "#ffffff"
+                            color: moduleFontColor
                             font.pixelSize: 14 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
 

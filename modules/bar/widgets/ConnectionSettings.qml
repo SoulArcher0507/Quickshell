@@ -157,6 +157,18 @@ Rectangle {
                     radius: 8
                     color: "#ffffff"
                     border.color: "#888888"
+
+                    MouseArea {
+                        anchors.fill: parent
+                        drag.target: parent
+                        drag.axis: Drag.XAxis
+                        onPositionChanged: {
+                            // calcola la frazione di scorrimento da 0 a 1
+                            let frac = (parent.x - volumeSlider.leftPadding)
+                                    / (volumeSlider.availableWidth - parent.width);
+                            volumeSlider.value = frac * (volumeSlider.to - volumeSlider.from) + volumeSlider.from;
+                        }
+                    }
                 }
                 WheelHandler {
                     onWheel: {
@@ -215,6 +227,18 @@ Rectangle {
                     color: "#ffffff"
                     border.color: "#888888"
                 }
+                MouseArea {
+                    anchors.fill: parent
+                    drag.target: parent
+                    drag.axis: Drag.XAxis
+                    onPositionChanged: {
+                        // calcola la frazione di scorrimento da 0 a 1
+                        let frac = (parent.x - brightnessSlider.leftPadding)
+                                / (brightnessSlider.availableWidth - parent.width);
+                        brightnessSlider.value = frac * (brightnessSlider.to - brightnessSlider.from) + brightnessSlider.from;
+                    }
+                }
+
                 WheelHandler {
                     onWheel: {
                         const step = 5;
@@ -256,8 +280,24 @@ Rectangle {
     }
 
     Component.onCompleted: {
-        updateVolume()
-        updateBrightnessIcon()
+        // Volume
+        updateVolume();
+
+        // Brightness: eseguo un comando shell e parsifico la risposta
+        var proc = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
+        proc.command = "brightnessctl";
+        proc.arguments = ["--format=%{value}","get"];
+        proc.start();
+        proc.waitForFinished();
+        var cur = parseInt(proc.readAllStandardOutput());
+        // valori grezzi, immagini di sapere il max:
+        var proc2 = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
+        proc2.command = "brightnessctl";
+        proc2.arguments = ["--format=%{max}","get"];
+        proc2.start(); proc2.waitForFinished();
+        var mx = parseInt(proc2.readAllStandardOutput());
+        brightnessSlider.value = (cur / mx) * 100;
+        updateBrightnessIcon();
     }
 }
 

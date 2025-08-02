@@ -51,87 +51,63 @@ Variants {
                 border.width: 0
 
                 // Workspaces on the far left - connected to Hyprland
-                Rectangle {
-                    id: workspacesContainer
-                    radius: 10 * panel.scaleFactor
-                    color: "#333333"
-                    border.color: "#555555"
-                    border.width: 1 * panel.scaleFactor
+                Row {
+                    id: workspacesRow
                     anchors {
                         left: parent.left
                         verticalCenter: parent.verticalCenter
                         leftMargin: 16 * panel.scaleFactor
                     }
-                    property real padding: 8 * panel.scaleFactor
-                    width: workspacesRow.width + padding * 2
-                    height: 24 * panel.scaleFactor
+                    spacing: 8 * panel.scaleFactor
+                    
+                    // Real Hyprland workspace data
+                    Repeater {
+                        model: Hyprland.workspaces
 
-                    Row {
-                        id: workspacesRow
-                        anchors.centerIn: parent
-                        spacing: 8 * panel.scaleFactor
+                        delegate: Rectangle {
+                            // mostra solo i workspace il cui monitor corrisponde a questo screen
+                            visible: modelData.monitor.id === Hyprland.monitorFor(screen).id
 
-                        // Real Hyprland workspace data
-                        Repeater {
-                            model: Hyprland.workspaces
+                            width: 30 * panel.scaleFactor
+                            height: 24 * panel.scaleFactor
+                            radius: 8 * panel.scaleFactor
+                            color: modelData.active ? "#4a9eff" : "#333333"
+                            border.color: "#555555"
+                            border.width: 1 * panel.scaleFactor
 
-                            delegate: Rectangle {
-                                // mostra solo i workspace il cui monitor corrisponde a questo screen
-                                visible: modelData.monitor.id === Hyprland.monitorFor(screen).id
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: Hyprland.dispatch("workspace " + modelData.id)
+                            }
 
-                                width: 30 * panel.scaleFactor
-                                height: 24 * panel.scaleFactor
-                                radius: 8 * panel.scaleFactor
-                                color: modelData.active ? "#4a9eff" : "#333333"
-                                border.color: "#555555"
-                                border.width: 1 * panel.scaleFactor
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: Hyprland.dispatch("workspace " + modelData.id)
-                                }
-
-                                Text {
-                                    text: modelData.id
-                                    anchors.centerIn: parent
-                                    color: modelData.active ? "#ffffff" : "#cccccc"
-                                    font.pixelSize: 12 * panel.scaleFactor
-                                    font.family: "CaskaydiaMono Nerd Font"
-                                }
+                            Text {
+                                text: modelData.id
+                                anchors.centerIn: parent
+                                color: modelData.active ? "#ffffff" : "#cccccc"
+                                font.pixelSize: 12 * panel.scaleFactor
+                                font.family: "CaskaydiaMono Nerd Font"
                             }
                         }
-
-                        // Fallback if no workspaces are detected
-                        Text {
-                            visible: Hyprland.workspaces.length === 0
-                            text: "No workspaces"
-                            color: "#ffffff"
-                            font.pixelSize: 12 * panel.scaleFactor
-                        }
+                    }
+                    
+                    // Fallback if no workspaces are detected
+                    Text {
+                        visible: Hyprland.workspaces.length === 0
+                        text: "No workspaces"
+                        color: "#ffffff"
+                        font.pixelSize: 12 * panel.scaleFactor
                     }
                 }
 
 
-                Rectangle {
-                    id: systemTrayContainer
-                    radius: 10 * panel.scaleFactor
-                    color: "#333333"
-                    border.color: "#555555"
-                    border.width: 1 * panel.scaleFactor
+                SystemTray {
+                    id: systemTrayWidget
+                    bar: panel  // Pass the panel window reference
+                    scaleFactor: panel.scaleFactor
                     anchors {
                         right: logoutButton.left
                         verticalCenter: parent.verticalCenter
-                        rightMargin: 16 * panel.scaleFactor
-                    }
-                    property real padding: 4 * panel.scaleFactor
-                    width: systemTrayWidget.width + padding * 2
-                    height: systemTrayWidget.height + padding * 2
-
-                    SystemTray {
-                        id: systemTrayWidget
-                        bar: panel  // Pass the panel window reference
-                        scaleFactor: panel.scaleFactor
-                        anchors.centerIn: parent
+                        rightMargin: 0
                     }
                 }
 
@@ -146,7 +122,7 @@ Variants {
                     border.color: "#555555"
                     border.width: 1 * panel.scaleFactor
                     anchors {
-                        right: timeContainer.left
+                        right: timeDisplay.left
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16 * panel.scaleFactor
                     }
@@ -166,48 +142,36 @@ Variants {
                 }
 
                 // Time on the far right
-                Rectangle {
-                    id: timeContainer
-                    radius: 10 * panel.scaleFactor
-                    color: "#333333"
-                    border.color: "#555555"
-                    border.width: 1 * panel.scaleFactor
+                Text {
+                    id: timeDisplay
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16 * panel.scaleFactor
                     }
-                    property real padding: 8 * panel.scaleFactor
-                    width: timeDisplay.implicitWidth + padding * 2
-                    height: 24 * panel.scaleFactor
-
-                    Text {
-                        id: timeDisplay
-                        anchors.centerIn: parent
-
-                        property string currentTime: ""
-
-                        text: currentTime
-                        color: "#ffffff"
-                        font.pixelSize: 14 * panel.scaleFactor
-                        font.family: "CaskaydiaMono Nerd Font"
-
-                        // Update time every second
-                        Timer {
-                            interval: 1000
-                            running: true
-                            repeat: true
-                            onTriggered: {
-                                var now = new Date()
-                                timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
-                            }
-                        }
-
-                        // Initialize time immediately
-                        Component.onCompleted: {
+                    
+                    property string currentTime: ""
+                    
+                    text: currentTime
+                    color: "#ffffff"
+                    font.pixelSize: 14 * panel.scaleFactor
+                    font.family: "CaskaydiaMono Nerd Font"
+                    
+                    // Update time every second
+                    Timer {
+                        interval: 1000
+                        running: true
+                        repeat: true
+                        onTriggered: {
                             var now = new Date()
-                            currentTime = Qt.formatDate(now, "MMM dd") + " " + Qt.formatTime(now, "hh:mm:ss")
+                            timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
                         }
+                    }
+                    
+                    // Initialize time immediately
+                    Component.onCompleted: {
+                        var now = new Date()
+                        currentTime = Qt.formatDate(now, "MMM dd") + " " + Qt.formatTime(now, "hh:mm:ss")
                     }
                 }
             }

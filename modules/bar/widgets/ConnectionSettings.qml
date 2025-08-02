@@ -158,6 +158,14 @@ Rectangle {
                     color: "#ffffff"
                     border.color: "#888888"
                 }
+                WheelHandler {
+                    onWheel: {
+                        const step = 5;
+                        volumeSlider.value = Math.min(volumeSlider.to,
+                                                     Math.max(volumeSlider.from,
+                                                              volumeSlider.value + step * wheel.angleDelta.y / 120))
+                    }
+                }
             }
         }
 
@@ -206,6 +214,14 @@ Rectangle {
                     radius: 8
                     color: "#ffffff"
                     border.color: "#888888"
+                }
+                WheelHandler {
+                    onWheel: {
+                        const step = 5;
+                        brightnessSlider.value = Math.min(brightnessSlider.to,
+                                                         Math.max(brightnessSlider.from,
+                                                                  brightnessSlider.value + step * wheel.angleDelta.y / 120))
+                    }
                 }
             }
         }

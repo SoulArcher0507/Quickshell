@@ -130,9 +130,36 @@ Variants {
                         }
                     }
 
+                    // System Tray
                     Rectangle{
                         id: trayButton
                         width: systemTrayWidget.width
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: 1 * panel.scaleFactor
+                        anchors {
+                            right: notifyButton.left
+                            verticalCenter: parent.verticalCenter
+                            rightMargin: 8 * panel.scaleFactor
+                        }
+                        SystemTray {
+                            id: systemTrayWidget
+                            bar: panel  // Pass the panel window reference
+                            scaleFactor: panel.scaleFactor
+                            anchors {
+                                right: notifyButton.left
+                                verticalCenter: parent.verticalCenter
+                                rightMargin: 0
+                            }
+                        }
+                    }
+
+                    // Notifiche
+                    Rectangle {
+                        id: notifyButton
+                        width: 35 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -143,15 +170,18 @@ Variants {
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
-                        SystemTray {
-                            id: systemTrayWidget
-                            bar: panel  // Pass the panel window reference
-                            scaleFactor: panel.scaleFactor
-                            anchors {
-                                right: rightsidebarButton.left
-                                verticalCenter: parent.verticalCenter
-                                rightMargin: 0
-                            }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: Hyprland.dispatch("swaync-client -t -sw")
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "" // power icon
+                            color: moduleFontColor
+                            font.pixelSize: 15 * panel.scaleFactor
+                            font.family: "Fira Sans Semibold"
                         }
                     }
 
@@ -170,23 +200,8 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        property bool isEthernet: true
-                        property string networkIcon: isEthernet ? "" : ""
-                        property string volumeIcon: ""
-
-                        function updateVolumeIcon() {
-                            var sink = Pipewire.defaultAudioSink
-                            var vol = sink.volume
-                            if (sink.description && sink.description.toLowerCase().indexOf("headset") !== -1) {
-                                volumeIcon = ""
-                            } else if (sink.mute || vol <= 0.0) {
-                                volumeIcon = ""
-                            } else if (vol <= 0.5) {
-                                volumeIcon = ""
-                            } else {
-                                volumeIcon = ""
-                            }
-                        }
+                        property string networkIcon: ""
+                        property string volumeIcon: ""
 
                         Row {
                             anchors.centerIn: parent
@@ -198,7 +213,6 @@ Variants {
                                     font.pixelSize: 15 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
                                 }
-
                         }
 
                         MouseArea {

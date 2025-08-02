@@ -32,7 +32,6 @@ Variants {
             PanelWindow {
                 id: connectionWindow
                 screen: delegateRoot.modelData
-                layer: LayerShell.Layer.Overlay
                 anchors {
                     top: true
                     right: true

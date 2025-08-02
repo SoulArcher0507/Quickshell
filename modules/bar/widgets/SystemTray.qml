@@ -122,7 +122,7 @@ Item {
                 // ToolTip attachable
                 ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
                 ToolTip.text: trayItem.title
-                ToolTip.delay: 500   // ms di ritardo prima di mostrare
+                ToolTip.delay: 800   // ms di ritardo prima di mostrare
             }
         }
     }

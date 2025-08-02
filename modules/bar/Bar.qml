@@ -114,8 +114,8 @@ Variants {
                                     text: modelData.id
                                     anchors.centerIn: parent
                                     color: modelData.active ? workspaceActiveFontColor : workspaceInactiveFontColor
-                                    font.pixelSize: 12 * panel.scaleFactor
-                                    font.family: "CaskaydiaMono Nerd Font"
+                                    font.pixelSize: 13 * panel.scaleFactor
+                                    font.family: "Fira Sans Semibold"
                                 }
                             }
                         }
@@ -125,7 +125,7 @@ Variants {
                             visible: Hyprland.workspaces.length === 0
                             text: "No workspaces"
                             color: workspaceActiveFontColor
-                            font.pixelSize: 12 * panel.scaleFactor
+                            font.pixelSize: 15 * panel.scaleFactor
                         }
                     }
 
@@ -138,7 +138,7 @@ Variants {
                         border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors {
-                            right: networkButton.left
+                            right: rightsidebarButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 8 * panel.scaleFactor
                         }
@@ -147,17 +147,17 @@ Variants {
                             bar: panel  // Pass the panel window reference
                             scaleFactor: panel.scaleFactor
                             anchors {
-                                right: networkButton.left
+                                right: rightsidebarButton.left
                                 verticalCenter: parent.verticalCenter
                                 rightMargin: 0
                             }
                         }
                     }
 
-
+                    // Right Sidebar Button
                     Rectangle {
-                        id: networkButton
-                        width: 55 * panel.scaleFactor
+                        id: rightsidebarButton
+                        width: 70 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -177,7 +177,7 @@ Variants {
                             spacing: 4 * panel.scaleFactor
 
                                 Text {
-                                    text: networkButton.networkIcon + "  "
+                                    text: rightsidebarButton.networkIcon + "  "
                                     color: moduleFontColor
                                     font.pixelSize: 15 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
@@ -205,7 +205,7 @@ Variants {
                     // Button to trigger wlogout between tray and clock
                     Rectangle {
                         id: logoutButton
-                        width: 30 * panel.scaleFactor
+                        width: 35 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -214,7 +214,7 @@ Variants {
                         anchors {
                             right: timeButton.left
                             verticalCenter: parent.verticalCenter
-                            rightMargin: 16 * panel.scaleFactor
+                            rightMargin: 8 * panel.scaleFactor
                         }
 
                         MouseArea {
@@ -227,14 +227,14 @@ Variants {
                             text: "" // power icon
                             color: moduleFontColor
                             font.pixelSize: 15 * panel.scaleFactor
-                            font.family: "CaskaydiaMono Nerd Font"
+                            font.family: "Fira Sans Semibold"
                         }
                     }
 
                     // Time on the far right
                     Rectangle{ 
                         id: timeButton
-                        width: 180 * panel.scaleFactor
+                        width: 145 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -258,7 +258,7 @@ Variants {
                             text: currentTime
                             color: moduleFontColor
                             font.pixelSize: 14 * panel.scaleFactor
-                            font.family: "CaskaydiaMono Nerd Font"
+                            font.family: "Fira Sans Semibold"
 
                             // Update time every second
                             Timer {

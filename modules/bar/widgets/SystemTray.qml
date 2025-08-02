@@ -27,20 +27,13 @@ Item {
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
     readonly property int iconPadding: baseIconPadding * scaleFactor
 
-    // Calculate width based on number of tray items including padding
-    width: SystemTray.items.length > 0
-           ? SystemTray.items.length * (iconSize + iconSpacing) - iconSpacing + iconPadding * 2
-           : 0
-    height: iconSize + iconPadding * 2
+    // Calculate width based on number of tray items
+    width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
 
     // Row to hold all system tray icons
     Row {
         id: trayRow
-        anchors {
-            left: parent.left
-            verticalCenter: parent.verticalCenter
-            leftMargin: iconPadding
-        }
+        anchors.centerIn: parent
         spacing: iconSpacing
 
         Repeater {

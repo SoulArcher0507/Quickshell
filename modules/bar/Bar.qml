@@ -123,7 +123,7 @@ Variants {
                     Rectangle{
                         id: trayButton
                         width: systemTrayWidget.width
-                        height: systemTrayWidget.height
+                        height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: "#333333"
                         border.color: "#555555"
@@ -137,14 +137,18 @@ Variants {
                             id: systemTrayWidget
                             bar: panel  // Pass the panel window reference
                             scaleFactor: panel.scaleFactor
-                            anchors.centerIn: parent
+                            anchors {
+                                right: networkButton.left
+                                verticalCenter: parent.verticalCenter
+                                rightMargin: 0
+                            }
                         }
                     }
 
 
                     Rectangle {
                         id: networkButton
-                        width: 45 * panel.scaleFactor
+                        width: 55 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: "#333333"
@@ -164,18 +168,12 @@ Variants {
                             spacing: 4 * panel.scaleFactor
 
                             Text {
-                                text: networkButton.networkIcon
+                                text: networkButton.networkIcon + "  "
                                 color: "#cccccc"
                                 font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
 
-                            Text {
-                                text: ""
-                                color: "#cccccc"
-                                font.pixelSize: 15 * panel.scaleFactor
-                                font.family: "CaskaydiaMono Nerd Font"
-                            }
                         }
 
                         MouseArea {

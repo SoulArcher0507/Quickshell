@@ -3,14 +3,18 @@ import QtQuick.Controls
 
 Rectangle {
     id: root
+    property int margin: 16
     anchors.fill: parent
     color: "#222222"
     radius: 8
+    border.color: "#555555"
+    border.width: 1
+    implicitHeight: content.implicitHeight + margin * 2
 
     Column {
         id: content
         anchors.fill: parent
-        anchors.margins: 16
+        anchors.margins: root.margin
         spacing: 24
 
         // Uptime bar

@@ -43,8 +43,7 @@ Variants {
                 height: connectionContent.implicitHeight
                 visible: false
                 color: "transparent"
-                onActiveChanged: if (!active) visible = false
-                onVisibleChanged: if (visible) connectionContent.forceActiveFocus()
+
 
                 ConnectionSettings {
                     id: connectionContent

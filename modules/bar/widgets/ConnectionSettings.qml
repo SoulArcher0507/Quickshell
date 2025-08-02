@@ -16,7 +16,7 @@ Rectangle {
     focus: true
 
     Shortcut {
-        sequence: "Escape"
+        sequence: "Esc"
         context: Qt.WindowShortcut
         onActivated: root.window.visible = false
     }
@@ -41,7 +41,7 @@ Rectangle {
 
             Text {
                 id: uptimeText
-                text: "Uptime: 0h, 0m"
+                text: ""
                 color: "#ffffff"
                 font.pixelSize: 14
                 font.family: "Fira Sans Semibold"

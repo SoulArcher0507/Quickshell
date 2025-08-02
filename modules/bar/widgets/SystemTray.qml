@@ -20,15 +20,16 @@ Item {
 
     readonly property int baseIconSize: 22
     readonly property int baseIconSpacing: 8
-    readonly property int baseIconPadding: 4
 
     readonly property int iconSize: baseIconSize * scaleFactor
     readonly property int iconSpacing: baseIconSpacing * scaleFactor
-    readonly property int iconPadding: baseIconPadding * scaleFactor
+
+    readonly property int boxWidth: 30 * scaleFactor
+    readonly property int boxHeight: 24 * scaleFactor
 
     // Calculate width based on number of tray items
-    width: Math.max(0, trayRow.children.length * (iconSize + iconSpacing) - iconSpacing)
-    height: iconSize + iconPadding * 2
+    width: Math.max(0, trayRow.children.length * (boxWidth + iconSpacing) - iconSpacing)
+    height: boxHeight
 
     // Row to hold all system tray icons
     Row {
@@ -39,14 +40,14 @@ Item {
         Repeater {
             model: SystemTray.items
 
-            // Individual system tray icon
+            // Individual system tray item wrapped in a box
             MouseArea {
                 id: trayMouseArea
 
                 property SystemTrayItem trayItem: modelData
 
-                width: iconSize
-                height: iconSize
+                width: boxWidth
+                height: boxHeight
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 hoverEnabled: true
 
@@ -79,12 +80,14 @@ Item {
                     anchor.edges: Edges.Bottom
                 }
 
-                // Background rectangle with hover effect
+                // Background rectangle styled like other modules
                 Rectangle {
                     id: backgroundRect
                     anchors.fill: parent
-                    color: trayMouseArea.containsMouse ? surfaceVariant : "transparent"
-                    radius: 4
+                    color: "#333333"
+                    border.color: "#555555"
+                    border.width: 1 * scaleFactor
+                    radius: 10 * scaleFactor
 
                     Behavior on color {
                         ColorAnimation {
@@ -98,8 +101,8 @@ Item {
                 Image {
                     id: iconImage
                     anchors.centerIn: parent
-                    width: iconSize - 2
-                    height: iconSize - 2
+                    width: iconSize
+                    height: iconSize
                     source: trayItem.icon
                     fillMode: Image.PreserveAspectFit
                     smooth: true

@@ -172,18 +172,20 @@ Variants {
 
                         property bool isEthernet: true
                         property string networkIcon: isEthernet ? "" : ""
-                        property string volumeIcon: {
+                        property string volumeIcon: ""
+
+                        function updateVolumeIcon() {
                             var sink = Pipewire.defaultAudioSink
-                            if (!sink)
-                                return ""
                             var vol = sink.volume
-                            if (sink.description && sink.description.toLowerCase().indexOf("headset") !== -1)
-                                return ""
-                            if (sink.mute || vol <= 0.0)
-                                return ""
-                            if (vol <= 0.5)
-                                return ""
-                            return ""
+                            if (sink.description && sink.description.toLowerCase().indexOf("headset") !== -1) {
+                                volumeIcon = ""
+                            } else if (sink.mute || vol <= 0.0) {
+                                volumeIcon = ""
+                            } else if (vol <= 0.5) {
+                                volumeIcon = ""
+                            } else {
+                                volumeIcon = ""
+                            }
                         }
 
                         Row {
@@ -211,7 +213,13 @@ Variants {
                             onTriggered: nmcliProcess.start()
                         }
 
-                        Component.onCompleted: nmcliProcess.start()
+                        Connections {
+                            target: Pipewire.defaultAudioSink
+                            function onVolumeChanged() { rightsidebarButton.updateVolumeIcon() }
+                            function onMuteChanged() { rightsidebarButton.updateVolumeIcon() }
+                        }
+
+                        Component.onCompleted: { nmcliProcess.start(); updateVolumeIcon() }
                     }
 
                     // Button to trigger wlogout between tray and clock

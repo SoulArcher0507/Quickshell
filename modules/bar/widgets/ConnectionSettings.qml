@@ -13,6 +13,13 @@ Rectangle {
     border.color: "#555555"
     border.width: 1
     implicitHeight: content.implicitHeight + margin * 2
+    focus: true
+
+    Shortcut {
+        sequence: "Escape"
+        context: Qt.WindowShortcut
+        onActivated: root.window.visible = false
+    }
 
     Column {
         id: content
@@ -33,7 +40,8 @@ Rectangle {
             }
 
             Text {
-                text: "Uptime: 7h, 48m"
+                id: uptimeText
+                text: "Uptime: 0h, 0m"
                 color: "#ffffff"
                 font.pixelSize: 14
                 font.family: "Fira Sans Semibold"
@@ -228,6 +236,14 @@ Rectangle {
         }
     }
 
+    Timer {
+        id: uptimeTimer
+        interval: 60000
+        running: true
+        repeat: true
+        onTriggered: updateUptime()
+    }
+
     function updateVolume() {
         volumeSlider.value = Pipewire.defaultAudioSink.volume * 100
         if (Pipewire.defaultAudioSink.mute || volumeSlider.value === 0) {
@@ -248,6 +264,18 @@ Rectangle {
         } else {
             brightnessIcon.text = "\uf0eb"
         }
+    }
+
+    function updateUptime() {
+        var proc = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
+        proc.command = "cat";
+        proc.arguments = ["/proc/uptime"];
+        proc.start();
+        proc.waitForFinished();
+        var seconds = parseFloat(proc.readAllStandardOutput().split(" ")[0]);
+        var hours = Math.floor(seconds / 3600);
+        var minutes = Math.floor((seconds % 3600) / 60);
+        uptimeText.text = "Uptime: " + hours + "h, " + minutes + "m";
     }
 
     Connections {
@@ -275,6 +303,7 @@ Rectangle {
         var mx = parseInt(proc2.readAllStandardOutput());
         brightnessSlider.value = (cur / mx) * 100;
         updateBrightnessIcon();
+        updateUptime();
     }
 }
 

@@ -113,6 +113,7 @@ Variants {
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: Hyprland.dispatch("workspace " + modelData.id)
                                 }
 
@@ -178,6 +179,7 @@ Variants {
 
                         MouseArea {
                             anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: Hyprland.dispatch("swaync-client -t -sw")
                         }
 
@@ -222,6 +224,7 @@ Variants {
 
                         MouseArea {
                             anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: connectionWindow.visible = !connectionWindow.visible
                         }
 
@@ -258,6 +261,7 @@ Variants {
 
                         MouseArea {
                             anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
                             onClicked: Hyprland.dispatch("exec ~/.config/hypr/scripts/wlogout.sh")
                         }
 

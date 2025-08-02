@@ -50,7 +50,24 @@ Variants {
                 border.color: "#333333"
                 border.width: 0
 
-                // Workspaces on the far left - connected to Hyprland
+                // Padding around all modules
+                property real barPadding: 16 * panel.scaleFactor
+
+                // Background that grows with modules and keeps fancy corners
+                DynamicBarBackground {
+                    id: background
+                    // bind to number and size of modules so width updates reactively
+                    moduleCount: modulesRow.children.length
+                    moduleWidth: modulesRow.children.length > 0 ? modulesRow.childrenRect.width / modulesRow.children.length : 0
+                    bgColor: "#1a1a1a"
+                    anchors {
+                        top: parent.top
+                        bottom: parent.bottom
+                        left: parent.left
+                    }
+                }
+
+                // Row containing all modules
                 Row {
                     id: workspacesRow
                     anchors {

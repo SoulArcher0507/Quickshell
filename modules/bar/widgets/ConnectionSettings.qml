@@ -182,7 +182,7 @@ Rectangle {
                 Layout.alignment: Qt.AlignVCenter
                 from: 0
                 to: 100
-                value: 80
+                value: 0
                 onValueChanged: {
                     Hyprland.dispatch("exec brightnessctl set " + Math.round(value) + "%")
                     updateBrightnessIcon()

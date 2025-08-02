@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Controls
+import Quickshell.Services.Pipewire
+import Quickshell.Hyprland
 
 Rectangle {
     id: root
@@ -130,6 +132,11 @@ Rectangle {
                 from: 0
                 to: 100
                 value: 50
+                onValueChanged: {
+                    Pipewire.defaultAudioSink.volume = value / 100
+                    Pipewire.defaultAudioSink.mute = (value === 0)
+                    updateVolume()
+                }
 
                 background: Rectangle {
                     x: volumeSlider.leftPadding
@@ -175,6 +182,10 @@ Rectangle {
                 from: 0
                 to: 100
                 value: 80
+                onValueChanged: {
+                    Hyprland.dispatch("exec brightnessctl set " + Math.round(value) + "%")
+                    updateBrightnessIcon()
+                }
 
                 background: Rectangle {
                     x: brightnessSlider.leftPadding
@@ -197,6 +208,39 @@ Rectangle {
                 }
             }
         }
+    }
+
+    function updateVolume() {
+        volumeSlider.value = Pipewire.defaultAudioSink.volume * 100
+        if (Pipewire.defaultAudioSink.mute || volumeSlider.value === 0) {
+            volumeIcon.text = "\uf026"
+        } else if (volumeSlider.value < 50) {
+            volumeIcon.text = "\uf027"
+        } else {
+            volumeIcon.text = "\uf028"
+        }
+    }
+
+    function updateBrightnessIcon() {
+        var v = brightnessSlider.value
+        if (v < 30) {
+            brightnessIcon.text = "\uf186"
+        } else if (v < 80) {
+            brightnessIcon.text = "\uf185"
+        } else {
+            brightnessIcon.text = "\uf0eb"
+        }
+    }
+
+    Connections {
+        target: Pipewire.defaultAudioSink
+        function onVolumeChanged() { updateVolume() }
+        function onMuteChanged() { updateVolume() }
+    }
+
+    Component.onCompleted: {
+        updateVolume()
+        updateBrightnessIcon()
     }
 }
 

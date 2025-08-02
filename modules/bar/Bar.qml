@@ -174,15 +174,7 @@ Variants {
                             onClicked: connectionWindow.visible = !connectionWindow.visible
                         }
 
-                        Process {
-                            id: nmcliProcess
-                            command: "bash"
-                            arguments: ["-c", "nmcli -t -f TYPE,STATE device | grep ':connected' | cut -d: -f1"]
-                            onFinished: {
-                                var out = readAllStandardOutput();
-                                networkButton.isEthernet = out.indexOf("ethernet") !== -1;
-                            }
-                        }
+
 
                         Timer {
                             interval: 10000

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Hyprland
 import "widgets/"
@@ -9,6 +10,7 @@ Variants {
     id: bar
     model: Quickshell.screens;
 
+    
     delegate: Component {
         PanelWindow {
             id: panel
@@ -19,8 +21,6 @@ Variants {
 
             // we can then set the window's screen to the injected property
             screen: modelData
-
-
         
             
             // Panel configuration - span full width
@@ -52,18 +52,6 @@ Variants {
 
                 // Padding around all modules
                 property real barPadding: 16 * panel.scaleFactor
-
-                // Background that grows with modules
-                Rectangle {
-                    id: background
-                    anchors {
-                        top: parent.top
-                        bottom: parent.bottom
-                        left: parent.left
-                    }
-                    width: modulesRow.width + bar.barPadding * 2
-                    color: "#1a1a1a"
-                }
 
                 // Row containing all modules
                 Row {

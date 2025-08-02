@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Services.Pipewire
 import Qt.labs.platform 1.1
 import "widgets/"
 import org.kde.layershell 1.0
@@ -171,13 +172,26 @@ Variants {
 
                         property bool isEthernet: true
                         property string networkIcon: isEthernet ? "" : ""
+                        property string volumeIcon: {
+                            var sink = Pipewire.defaultAudioSink
+                            if (!sink)
+                                return ""
+                            var vol = sink.volume
+                            if (sink.description && sink.description.toLowerCase().indexOf("headset") !== -1)
+                                return ""
+                            if (sink.mute || vol <= 0.0)
+                                return ""
+                            if (vol <= 0.5)
+                                return ""
+                            return ""
+                        }
 
                         Row {
                             anchors.centerIn: parent
                             spacing: 4 * panel.scaleFactor
 
                                 Text {
-                                    text: rightsidebarButton.networkIcon + "  "
+                                    text: rightsidebarButton.networkIcon + "  " + rightsidebarButton.volumeIcon
                                     color: moduleFontColor
                                     font.pixelSize: 15 * panel.scaleFactor
                                     font.family: "CaskaydiaMono Nerd Font"
@@ -189,8 +203,6 @@ Variants {
                             anchors.fill: parent
                             onClicked: connectionWindow.visible = !connectionWindow.visible
                         }
-
-
 
                         Timer {
                             interval: 10000

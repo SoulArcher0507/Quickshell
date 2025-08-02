@@ -157,18 +157,6 @@ Rectangle {
                     radius: 8
                     color: "#ffffff"
                     border.color: "#888888"
-
-                    MouseArea {
-                        anchors.fill: parent
-                        drag.target: parent
-                        drag.axis: Drag.XAxis
-                        onPositionChanged: {
-                            // calcola la frazione di scorrimento da 0 a 1
-                            let frac = (parent.x - volumeSlider.leftPadding)
-                                    / (volumeSlider.availableWidth - parent.width);
-                            volumeSlider.value = frac * (volumeSlider.to - volumeSlider.from) + volumeSlider.from;
-                        }
-                    }
                 }
                 WheelHandler {
                     onWheel: {
@@ -227,24 +215,13 @@ Rectangle {
                     color: "#ffffff"
                     border.color: "#888888"
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    drag.target: parent
-                    drag.axis: Drag.XAxis
-                    onPositionChanged: {
-                        // calcola la frazione di scorrimento da 0 a 1
-                        let frac = (parent.x - brightnessSlider.leftPadding)
-                                / (brightnessSlider.availableWidth - parent.width);
-                        brightnessSlider.value = frac * (brightnessSlider.to - brightnessSlider.from) + brightnessSlider.from;
-                    }
-                }
 
                 WheelHandler {
                     onWheel: {
                         const step = 5;
                         brightnessSlider.value = Math.min(brightnessSlider.to,
-                                                         Math.max(brightnessSlider.from,
-                                                                  brightnessSlider.value + step * wheel.angleDelta.y / 120))
+                                                        Math.max(brightnessSlider.from,
+                                                                 brightnessSlider.value + step * wheel.angleDelta.y / 120))
                     }
                 }
             }

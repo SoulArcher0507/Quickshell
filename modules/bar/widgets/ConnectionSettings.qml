@@ -132,6 +132,12 @@ Rectangle {
                 font.pixelSize: 16
                 font.family: "CaskaydiaMono Nerd Font"
                 Layout.alignment: Qt.AlignVCenter
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Hyprland.dispatch("exec pavucontrol")
+                }
             }
 
             Slider {

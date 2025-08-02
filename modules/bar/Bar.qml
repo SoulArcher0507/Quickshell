@@ -32,16 +32,21 @@ Variants {
             PanelWindow {
                 id: connectionWindow
                 screen: delegateRoot.modelData
+                layer: LayerShell.Layer.Overlay
                 anchors {
                     top: true
-                    bottom: true
                     right: true
                 }
+                margins {
+                    right: 16
+                }
                 width: 300
+                height: connectionContent.implicitHeight
                 visible: false
-                color: moduleColor
+                color: "transparent"
 
                 ConnectionSettings {
+                    id: connectionContent
                     anchors.fill: parent
                 }
             }

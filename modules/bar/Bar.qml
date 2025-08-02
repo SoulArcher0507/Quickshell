@@ -90,8 +90,8 @@ Variants {
                                 visible: modelData.monitor.id === Hyprland.monitorFor(screen).id
 
                                 width: 30 * panel.scaleFactor
-                                height: 24 * panel.scaleFactor
-                                radius: 8 * panel.scaleFactor
+                                height: 30 * panel.scaleFactor
+                                radius: 10 * panel.scaleFactor
                                 color: modelData.active ? "#4a9eff" : "#333333"
                                 border.color: "#555555"
                                 border.width: 1 * panel.scaleFactor
@@ -120,23 +120,36 @@ Variants {
                         }
                     }
 
-
-                    SystemTray {
-                        id: systemTrayWidget
-                        bar: panel  // Pass the panel window reference
-                        scaleFactor: panel.scaleFactor
+                    Rectangle{
+                        id: trayButton
+                        width: 200 * panel.scaleFactor
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: "#333333"
+                        border.color: "#555555"
+                        border.width: 1 * panel.scaleFactor
                         anchors {
                             right: networkButton.left
                             verticalCenter: parent.verticalCenter
-                            rightMargin: 0
+                            rightMargin: 8 * panel.scaleFactor
+                        }
+                        SystemTray {
+                            id: systemTrayWidget
+                            bar: panel  // Pass the panel window reference
+                            scaleFactor: panel.scaleFactor
+                            anchors {
+                                right: networkButton.left
+                                verticalCenter: parent.verticalCenter
+                                rightMargin: 0
+                            }
                         }
                     }
 
 
                     Rectangle {
                         id: networkButton
-                        width: 30 * panel.scaleFactor
-                        height: 24 * panel.scaleFactor
+                        width: 45 * panel.scaleFactor
+                        height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: "#333333"
                         border.color: "#555555"
@@ -147,7 +160,7 @@ Variants {
                             rightMargin: 8 * panel.scaleFactor
                         }
 
-                        property bool isEthernet: false
+                        property bool isEthernet: true
                         property string networkIcon: isEthernet ? "" : ""
 
                         Row {
@@ -157,14 +170,14 @@ Variants {
                             Text {
                                 text: networkButton.networkIcon
                                 color: "#cccccc"
-                                font.pixelSize: 12 * panel.scaleFactor
+                                font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
 
                             Text {
                                 text: ""
                                 color: "#cccccc"
-                                font.pixelSize: 12 * panel.scaleFactor
+                                font.pixelSize: 15 * panel.scaleFactor
                                 font.family: "CaskaydiaMono Nerd Font"
                             }
                         }
@@ -190,13 +203,13 @@ Variants {
                     Rectangle {
                         id: logoutButton
                         width: 30 * panel.scaleFactor
-                        height: 24 * panel.scaleFactor
+                        height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: "#333333"
                         border.color: "#555555"
                         border.width: 1 * panel.scaleFactor
                         anchors {
-                            right: timeDisplay.left
+                            right: timeButton.left
                             verticalCenter: parent.verticalCenter
                             rightMargin: 16 * panel.scaleFactor
                         }
@@ -210,42 +223,56 @@ Variants {
                             anchors.centerIn: parent
                             text: "" // power icon
                             color: "#cccccc"
-                            font.pixelSize: 12 * panel.scaleFactor
+                            font.pixelSize: 15 * panel.scaleFactor
                             font.family: "CaskaydiaMono Nerd Font"
                         }
                     }
 
                     // Time on the far right
-                    Text {
-                        id: timeDisplay
+                    Rectangle{
+                        id: timeButton
+                        width: 180 * panel.scaleFactor
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: "#333333"
+                        border.color: "#555555"
+                        border.width: 1 * panel.scaleFactor
                         anchors {
                             right: parent.right
                             verticalCenter: parent.verticalCenter
                             rightMargin: 16 * panel.scaleFactor
                         }
-
-                        property string currentTime: ""
-
-                        text: currentTime
-                        color: "#ffffff"
-                        font.pixelSize: 14 * panel.scaleFactor
-                        font.family: "CaskaydiaMono Nerd Font"
-
-                        // Update time every second
-                        Timer {
-                            interval: 1000
-                            running: true
-                            repeat: true
-                            onTriggered: {
-                                var now = new Date()
-                                timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
+                        Text {
+                            id: timeDisplay
+                            anchors {
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                                rightMargin: 16 * panel.scaleFactor
                             }
-                        }
 
-                        // Initialize time immediately
-                        Component.onCompleted: {
-                            var now = new Date()
-                            currentTime = Qt.formatDate(now, "MMM dd") + " " + Qt.formatTime(now, "hh:mm:ss")
+                            property string currentTime: ""
+
+                            text: currentTime
+                            color: "#ffffff"
+                            font.pixelSize: 14 * panel.scaleFactor
+                            font.family: "CaskaydiaMono Nerd Font"
+
+                            // Update time every second
+                            Timer {
+                                interval: 1000
+                                running: true
+                                repeat: true
+                                onTriggered: {
+                                    var now = new Date()
+                                    timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
+                                }
+                            }
+
+                            // Initialize time immediately
+                            Component.onCompleted: {
+                                var now = new Date()
+                                currentTime = Qt.formatDate(now, "MMM dd") + " " + Qt.formatTime(now, "hh:mm:ss")
+                            }
                         }
                     }
                 }

@@ -70,7 +70,7 @@ Variants {
 
                             width: 30 * panel.scaleFactor
                             height: 24 * panel.scaleFactor
-                            radius: 10 * panel.scaleFactor
+                            radius: 8 * panel.scaleFactor
                             color: modelData.active ? "#4a9eff" : "#333333"
                             border.color: "#555555"
                             border.width: 1 * panel.scaleFactor
@@ -122,7 +122,7 @@ Variants {
                     border.color: "#555555"
                     border.width: 1 * panel.scaleFactor
                     anchors {
-                        right: timeContainer.left
+                        right: timeDisplay.left
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16 * panel.scaleFactor
                     }
@@ -141,47 +141,37 @@ Variants {
                     }
                 }
 
-                // Time on the far right wrapped in a box
-                Rectangle {
-                    id: timeContainer
-                    width: 30 * panel.scaleFactor
-                    height: 24 * panel.scaleFactor
-                    radius: 10 * panel.scaleFactor
-                    color: "#333333"
-                    border.color: "#555555"
-                    border.width: 1 * panel.scaleFactor
+                // Time on the far right
+                Text {
+                    id: timeDisplay
                     anchors {
                         right: parent.right
                         verticalCenter: parent.verticalCenter
                         rightMargin: 16 * panel.scaleFactor
                     }
-
-                    Text {
-                        id: timeDisplay
-                        anchors.centerIn: parent
-                        property string currentTime: ""
-
-                        text: currentTime
-                        color: "#ffffff"
-                        font.pixelSize: 12 * panel.scaleFactor
-                        font.family: "CaskaydiaMono Nerd Font"
-
-                        // Update time every second
-                        Timer {
-                            interval: 1000
-                            running: true
-                            repeat: true
-                            onTriggered: {
-                                var now = new Date()
-                                timeDisplay.currentTime = Qt.formatTime(now, "hh:mm")
-                            }
-                        }
-
-                        // Initialize time immediately
-                        Component.onCompleted: {
+                    
+                    property string currentTime: ""
+                    
+                    text: currentTime
+                    color: "#ffffff"
+                    font.pixelSize: 14 * panel.scaleFactor
+                    font.family: "CaskaydiaMono Nerd Font"
+                    
+                    // Update time every second
+                    Timer {
+                        interval: 1000
+                        running: true
+                        repeat: true
+                        onTriggered: {
                             var now = new Date()
-                            currentTime = Qt.formatTime(now, "hh:mm")
+                            timeDisplay.currentTime = Qt.formatTime(now, "hh:mm") + " - " + Qt.formatDate(now, "ddd dd MMM")
                         }
+                    }
+                    
+                    // Initialize time immediately
+                    Component.onCompleted: {
+                        var now = new Date()
+                        currentTime = Qt.formatDate(now, "MMM dd") + " " + Qt.formatTime(now, "hh:mm:ss")
                     }
                 }
             }

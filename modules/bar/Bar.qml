@@ -53,18 +53,16 @@ Variants {
                 // Padding around all modules
                 property real barPadding: 16 * panel.scaleFactor
 
-                // Background that grows with modules and keeps fancy corners
-                DynamicBarBackground {
+                // Background that grows with modules
+                Rectangle {
                     id: background
-                    // bind to number and size of modules so width updates reactively
-                    moduleCount: modulesRow.children.length
-                    moduleWidth: modulesRow.children.length > 0 ? modulesRow.childrenRect.width / modulesRow.children.length : 0
-                    bgColor: "#1a1a1a"
                     anchors {
                         top: parent.top
                         bottom: parent.bottom
                         left: parent.left
                     }
+                    width: modulesRow.width + bar.barPadding * 2
+                    color: "#1a1a1a"
                 }
 
                 // Row containing all modules

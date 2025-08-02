@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell.Services.Pipewire
 import Quickshell.Hyprland
 
@@ -111,7 +112,7 @@ Rectangle {
         }
 
         // Volume slider
-        Row {
+        RowLayout {
             id: volumeRow
             width: parent.width
             spacing: 8
@@ -122,13 +123,13 @@ Rectangle {
                 color: "#ffffff"
                 font.pixelSize: 16
                 font.family: "CaskaydiaMono Nerd Font"
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
             }
 
             Slider {
                 id: volumeSlider
-                anchors.verticalCenter: parent.verticalCenter
-                width: volumeRow.width - volumeIcon.width - volumeRow.spacing
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 from: 0
                 to: 100
                 value: 50
@@ -161,7 +162,7 @@ Rectangle {
         }
 
         // Brightness slider
-        Row {
+        RowLayout {
             id: brightnessRow
             width: parent.width
             spacing: 8
@@ -172,13 +173,13 @@ Rectangle {
                 color: "#ffffff"
                 font.pixelSize: 16
                 font.family: "CaskaydiaMono Nerd Font"
-                anchors.verticalCenter: parent.verticalCenter
+                Layout.alignment: Qt.AlignVCenter
             }
 
             Slider {
                 id: brightnessSlider
-                anchors.verticalCenter: parent.verticalCenter
-                width: brightnessRow.width - brightnessIcon.width - brightnessRow.spacing
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 from: 0
                 to: 100
                 value: 80

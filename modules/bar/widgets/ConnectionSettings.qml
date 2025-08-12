@@ -3,6 +3,10 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Services.Pipewire
 import Quickshell.Hyprland
+import Quickshell.Io
+import Quickshell.Wayland
+
+
 
 Rectangle {
     id: root
@@ -13,13 +17,50 @@ Rectangle {
     border.color: "#555555"
     border.width: 1
     implicitHeight: content.implicitHeight + margin * 2
-    focus: true
 
-    Shortcut {
-        sequence: "Esc"
-        context: Qt.WindowShortcut
-        onActivated: root.window.visible = false
+
+    Component.onCompleted: {
+        const w = QsWindow.window;
+        if (w) {
+            // Non riservare spazio, stai sopra
+            w.aboveWindows = true;              // layer "Top"
+            w.exclusiveZone = 0;
+            try {
+                if (w.WlrLayershell) {
+                    w.WlrLayershell.layer = WlrLayer.Overlay; // overlay
+                    w.WlrLayershell.keyboardFocus = WlrKeyboardFocus.OnDemand;
+                }
+            } catch (e) {}
+            // Tenta di catturare ESC
+            // (il focus arriva se il window manager lo concede)
+        }
     }
+    focus: true
+    Keys.onReleased: (event) => {
+        if (event.key === Qt.Key_Escape) {
+            const w = QsWindow.window;
+            if (w) w.visible = false;
+            else root.visible = false;
+            event.accepted = true;
+        }
+    }
+
+    // Clic fuori dalla scheda -> chiudi (funziona se la finestra è più grande della card)
+    MouseArea {
+        id: clickAway
+        anchors.fill: parent
+        z: 0
+        onClicked: {
+            // Clic in "sfondo" (fuori dalla card)
+            const local = mapToItem(card, mouse.x, mouse.y);
+            if (local.x < 0 || local.y < 0 || local.x > card.width || local.y > card.height) {
+                const w = QsWindow.window;
+                if (w) w.visible = false;
+                else root.visible = false;
+            }
+        }
+    }
+
 
     Column {
         id: content
@@ -33,20 +74,14 @@ Rectangle {
             spacing: 8
 
             Text {
-                text: "\u25B2"
-                color: "#ffffff"
-                font.pixelSize: 14
-                font.family: "Fira Sans Semibold"
-            }
-
-            Text {
                 id: uptimeText
-                text: ""
+                text: uptimeString.length > 0 ? `Uptime: ${uptimeString}` : "Uptime: …"
                 color: "#ffffff"
                 font.pixelSize: 14
                 font.family: "Fira Sans Semibold"
             }
         }
+
 
         // Row of buttons/icons
         Row {
@@ -317,27 +352,22 @@ Rectangle {
         function onVolumeChanged() { updateVolume() }
         function onMuteChanged() { updateVolume() }
     }
-
-    Component.onCompleted: {
-        // Volume
-        updateVolume();
-
-        // Brightness: eseguo un comando shell e parsifico la risposta
-        var proc = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
-        proc.command = "brightnessctl";
-        proc.arguments = ["--format=%{value}","get"];
-        proc.start();
-        proc.waitForFinished();
-        var cur = parseInt(proc.readAllStandardOutput());
-        // valori grezzi, immagini di sapere il max:
-        var proc2 = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
-        proc2.command = "brightnessctl";
-        proc2.arguments = ["--format=%{max}","get"];
-        proc2.start(); proc2.waitForFinished();
-        var mx = parseInt(proc2.readAllStandardOutput());
-        brightnessSlider.value = (cur / mx) * 100;
-        updateBrightnessIcon();
-        updateUptime();
+    
+    // ---- UPTIME ----
+    property string uptimeString: ""
+    Process {
+        id: uptimeProc
+        command: ["bash", "-lc", "uptime -p | sed 's/^up //; s/,//g'"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: root.uptimeString = (text || "").trim()
+        }
+    }
+    Timer {
+        interval: 60 * 1000
+        running: true
+        repeat: true
+        onTriggered: uptimeProc.running = true
     }
 }
 

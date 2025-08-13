@@ -11,6 +11,9 @@ PanelWindow {
     id: toaster
     color: "transparent"
 
+    // *** Usa il server condiviso ***
+    required property var server
+
     anchors { top: true; right: true }
     margins { top: 16; right: 16 }
 
@@ -18,24 +21,6 @@ PanelWindow {
     visible: toastRepeater.count > 0
     implicitWidth: 420
     implicitHeight: column.implicitHeight
-
-    // --- Notification server (unico, DBus) ---
-    NS.NotificationServer {
-        id: server
-        // pubblicizza le capacità (hint; non obbligano i client)
-        bodySupported: true
-        bodyMarkupSupported: true
-        bodyHyperlinksSupported: true
-        bodyImagesSupported: true
-        actionsSupported: true
-        actionIconsSupported: true
-        imageSupported: true
-        inlineReplySupported: true
-        keepOnReload: true
-
-        // traccia le notifiche in arrivo
-        onNotification: function(n) { n.tracked = true; }
-    }
 
     // Colonna di toast
     Column {
@@ -45,7 +30,7 @@ PanelWindow {
 
         Repeater {
             id: toastRepeater
-            // ObjectModel<Notification> → usa la vista lista "values"
+            // ObjectModel/UntypedObjectModel → usa la vista lista "values"
             model: server.trackedNotifications.values
             delegate: Toast { n: modelData; width: 380 }
         }
@@ -54,7 +39,6 @@ PanelWindow {
     // --- Componente "Toast" singolo ---
     component Toast: Rectangle {
         id: toast
-        // n viene passato dal repeater, ma lo inizializziamo per evitare 'undefined'
         property var n: null
 
         radius: 12
@@ -64,8 +48,7 @@ PanelWindow {
         width: 380
 
         // Entrata/uscita morbida
-        opacity: 0.0
-        y: 8
+        opacity: 0.0; y: 8
         Behavior on opacity { NumberAnimation { duration: 140 } }
         Behavior on y       { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
@@ -105,7 +88,7 @@ PanelWindow {
                     Layout.preferredWidth: 28
                     Layout.preferredHeight: 28
 
-                    // 1) Immagine "ricca" della notifica (es. avatar)
+                    // 1) Immagine "ricca"
                     IconImage {
                         id: richImage
                         anchors.fill: parent
@@ -113,7 +96,7 @@ PanelWindow {
                         visible: source.length > 0
                     }
 
-                    // 2) Fallback: icona di tema (per nome)
+                    // 2) Fallback: icona di tema
                     QQC2.Button {
                         anchors.fill: parent
                         visible: !richImage.visible && !!(toast.n && toast.n.appIcon && toast.n.appIcon.length)
@@ -140,7 +123,7 @@ PanelWindow {
 
                     Text {
                         text: (toast.n && toast.n.body) ? toast.n.body : ""
-                        textFormat: Text.RichText   // markup/hyperlink support (disabilita se vuoi PlainText)
+                        textFormat: Text.RichText
                         wrapMode: Text.Wrap
                         color: "#dddddd"
                         font.pixelSize: 12
@@ -208,10 +191,10 @@ PanelWindow {
             }
         }
 
-        // Anima l'uscita quando viene chiusa da remoto
+        // Uscita quando il server la chiude
         Connections {
-            target: toast.n ? toast.n : null    // evita "Unable to assign [undefined] to QObject*"
-            function onClosed(reason) {         // segnale corretto: 'closed(reason)'
+            target: toast.n ? toast.n : null
+            function onClosed(reason) {
                 toast.opacity = 0.0;
                 toast.y = -6;
             }

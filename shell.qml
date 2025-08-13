@@ -15,8 +15,11 @@ ShellRoot {
         sourceComponent: Bar {
         }
         Notifications.NotificationPopup {
+            id: notifPopup
             server: notifServer
+            screen: Quickshell.screens[0]   // oppure Quickshell.primaryScreen, o lo screen della tua Bar
         }
+
 
     }
 
@@ -32,8 +35,9 @@ ShellRoot {
         inlineReplySupported: true
         keepOnReload: true
 
-        // marca ogni notifica in arrivo come "tracked"
+        // IMPORTANTISSIMO: marca tutte le notifiche come "tracked"
         onNotification: function(n) { n.tracked = true }
     }
+
 }
 

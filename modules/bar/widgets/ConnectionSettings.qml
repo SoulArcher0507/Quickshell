@@ -5,6 +5,7 @@ import Quickshell.Services.Pipewire
 import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Services.UPower
 
 
 
@@ -121,51 +122,89 @@ Rectangle {
                 }
             }
 
-            Rectangle {
-                width: 40
-                height: 24
-                radius: 12
-                color: "#333333"
-                anchors.verticalCenter: parent.verticalCenter
+            // --- Selettore profilo energia (segmentato) ---
+            Item {
+                id: powerProfilesSegment
+                // Adatta queste dimensioni al tuo layout
+                height: 36
+                width: 3 * (buttonWidth) + 2 * separator
+                property int buttonWidth: 110
+                property int buttonHeight: 36
+                property int radiusPx: 8
+                property int separator: 1
 
-                Text {
-                    anchors.centerIn: parent
-                    text: "\uf131"
-                    color: "#ffffff"
-                    font.pixelSize: 14
-                    font.family: "CaskaydiaMono Nerd Font"
+                // Colori base: adegua ai tuoi
+                property color colBg:        "#2b2b2b"
+                property color colBorder:    "#555555"
+                property color colText:      "#ffffff"
+                property color colAccent:    "#4a9eff"
+                property string iconFont:    "0xProto Nerd Font" // usa il tuo font icone
+
+                // Alias al singleton del power-profiles-daemon
+                readonly property var pp: PowerProfiles
+
+                Row {
+                    anchors.fill: parent
+                    spacing: powerProfilesSegment.separator
+
+                    Repeater {
+                        model: [
+                            { key: PowerProfile.PowerSaver,  label: "Saver",     icon: ""  },
+                            { key: PowerProfile.Balanced,    label: "Balanced",  icon: ""  },
+                            { key: PowerProfile.Performance, label: "Perf",      icon: "", requiresPerf: true }
+                        ]
+
+                        delegate: Rectangle {
+                            width: powerProfilesSegment.buttonWidth
+                            height: powerProfilesSegment.buttonHeight
+                            radius: powerProfilesSegment.radiusPx
+                            border.width: 1
+                            border.color: powerProfilesSegment.colBorder
+
+                            // evidenzia quello selezionato
+                            color: (powerProfilesSegment.PP.profile === modelData.key)
+                                ? powerProfilesSegment.colAccent
+                                : powerProfilesSegment.colBg
+
+                            // se non c'è il profilo Performance, disabilita quel bottone
+                            readonly property bool disabledBtn: (modelData.requiresPerf === true
+                                                                && !powerProfilesSegment.PP.hasPerformanceProfile)
+                            opacity: disabledBtn ? 0.5 : 1.0
+
+                            Row {
+                                anchors.centerIn: parent
+                                spacing: 8
+                                // Icona (se usi una nerd font)
+                                Text {
+                                    text: modelData.icon
+                                    visible: text.length > 0
+                                    font.pixelSize: 16
+                                    font.family: powerProfilesSegment.iconFont
+                                    color: (powerProfilesSegment.PP.profile === modelData.key)
+                                        ? powerProfilesSegment.colBg  // testo scuro su accent
+                                        : powerProfilesSegment.colText
+                                }
+                                // Etichetta
+                                Text {
+                                    text: modelData.label
+                                    font.pixelSize: 14
+                                    color: (powerProfilesSegment.PP.profile === modelData.key)
+                                        ? powerProfilesSegment.colBg
+                                        : powerProfilesSegment.colText
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                enabled: !parent.disabledBtn
+                                onClicked: powerProfilesSegment.PP.profile = modelData.key
+                                hoverEnabled: true
+                            }
+                        }
+                    }
                 }
             }
 
-            Rectangle {
-                width: 40
-                height: 24
-                radius: 12
-                color: "#333333"
-                anchors.verticalCenter: parent.verticalCenter
-                Text {
-                    text: "\uf24e"
-                    color: "#ffffff"
-                    font.pixelSize: 16
-                    font.family: "CaskaydiaMono Nerd Font"
-                    anchors.centerIn: parent
-                }
-            }
-
-            Rectangle {
-                width: 40
-                height: 24
-                radius: 12
-                color: "#333333"
-                anchors.verticalCenter: parent.verticalCenter
-                Text {
-                    text: "\uf0e7"
-                    color: "#ffffff"
-                    font.pixelSize: 16
-                    font.family: "CaskaydiaMono Nerd Font"
-                    anchors.centerIn: parent
-                }
-            }
         }
 
         // Volume slider

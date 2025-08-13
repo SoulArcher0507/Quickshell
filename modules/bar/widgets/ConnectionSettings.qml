@@ -43,14 +43,14 @@ Rectangle {
     }
 
     function _updateTooltipText() {
-        if (netType === "down") return "Nessuna connessione";
+        if (netType === "down") return "No Connections";
         var t = (netType === "ethernet") ? "Ethernet" : (netType === "wifi" ? "Wi-Fi" : "Rete");
         var name = (netName && netName.length) ? netName : "(sconosciuta)";
         var ip = (netIp4 && netIp4.length) ? netIp4 : "—";
         var down = _humanBitsPerSec(rxBps);
         var up   = _humanBitsPerSec(txBps);
         return t + ": " + name +
-               "\nInterfaccia: " + netIface +
+               "\nInterface: " + netIface +
                "\nIP: " + ip +
                "\n↓ " + down + "   ↑ " + up;
     }
@@ -209,7 +209,7 @@ Rectangle {
                     visible: btArea.containsMouse
                     delay: 250
                     text: {
-                        if (!Bluetooth.defaultAdapter) return "Bluetooth non disponibile";
+                        if (!Bluetooth.defaultAdapter) return "Bluetooth not Available";
                         let names = [];
                         try {
                             const n = Bluetooth.devices ? Bluetooth.devices.count : 0;
@@ -218,7 +218,7 @@ Rectangle {
                                 if (d && d.connected) names.push(d.name || d.deviceName || d.address);
                             }
                         } catch(e) {}
-                        return names.length ? names.join(", ") : "Nessun dispositivo connesso";
+                        return names.length ? names.join(", ") : "No Device Connected";
                     }
                 }
             }

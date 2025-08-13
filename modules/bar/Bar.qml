@@ -46,7 +46,6 @@ Variants {
                 visible: false
                 color: "transparent"
 
-
                 ConnectionSettings {
                     id: connectionContent
                     anchors.fill: parent
@@ -73,6 +72,341 @@ Variants {
                     anchors.fill: parent
                 }
             }
+
+            // --- Power Menu overlay (sostituisce wlogout) ---
+            PanelWindow {
+                id: powerWindow
+                screen: delegateRoot.modelData
+                anchors {
+                    top: true
+                    left: true
+                    right: true
+                    bottom: true
+                }
+                visible: false
+                color: "transparent"
+
+                // Contenuto overlay a schermo intero con scrim + dialog
+                Item {
+                    id: powerRoot
+                    anchors.fill: parent
+                    focus: powerWindow.visible
+
+                    // Chiudi con ESC
+                    Keys.onPressed: {
+                        if (event.key === Qt.Key_Escape) {
+                            powerWindow.visible = false
+                            event.accepted = true
+                        }
+                    }
+
+                    // Scrim cliccabile per chiudere
+                    Rectangle {
+                        id: scrim
+                        anchors.fill: parent
+                        color: "#00000080"
+                        visible: true
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: powerWindow.visible = false
+                        }
+                    }
+
+                    // Dialog centrale
+                    Rectangle {
+                        id: powerDialog
+                        width: 480 * panel.scaleFactor
+                        height: 320 * panel.scaleFactor
+                        radius: 12 * panel.scaleFactor
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: 1 * panel.scaleFactor
+                        anchors.centerIn: parent
+
+                        // Mangia i click per non chiudere il menu
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.AllButtons
+                            onClicked: {} // do nothing, blocca la propagazione
+                        }
+
+                        Column {
+                            anchors.fill: parent
+                            anchors.margins: 16 * panel.scaleFactor
+                            spacing: 12 * panel.scaleFactor
+
+                            // Titolo
+                            Text {
+                                text: "Power"
+                                color: moduleFontColor
+                                font.pixelSize: 16 * panel.scaleFactor
+                                font.family: "Fira Sans Semibold"
+                                horizontalAlignment: Text.AlignHCenter
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+
+                            // Griglia opzioni
+                            Grid {
+                                id: grid
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                rows: 2
+                                columns: 3
+                                rowSpacing: 12 * panel.scaleFactor
+                                columnSpacing: 12 * panel.scaleFactor
+
+                                // --- Pulsanti (icone Nerd Font + label Fira Sans) ---
+                                // Lock
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Lock"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exec hyprlock")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+
+                                // Logout (esci da Hyprland)
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Logout"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exit")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+
+                                // Suspend
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Suspend"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exec systemctl suspend")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+
+                                // Hibernate
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Hibernate"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exec systemctl hibernate")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+
+                                // Reboot
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Reboot"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exec systemctl reboot")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+
+                                // Shutdown
+                                Rectangle {
+                                    width: 140 * panel.scaleFactor
+                                    height: 120 * panel.scaleFactor
+                                    radius: 10 * panel.scaleFactor
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1 * panel.scaleFactor
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        spacing: 6 * panel.scaleFactor
+
+                                        Text {
+                                            text: ""
+                                            font.pixelSize: 34 * panel.scaleFactor
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                        Text {
+                                            text: "Shutdown"
+                                            font.pixelSize: 13 * panel.scaleFactor
+                                            font.family: "Fira Sans Semibold"
+                                            color: moduleFontColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Hyprland.dispatch("exec systemctl poweroff")
+                                            powerWindow.visible = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // --- Fine Power Menu overlay ---
 
             PanelWindow {
                 id: panel
@@ -237,12 +571,12 @@ Variants {
                             anchors.centerIn: parent
                             spacing: 4 * panel.scaleFactor
 
-                                Text {
-                                    text: rightsidebarButton.networkIcon + "  " + rightsidebarButton.volumeIcon
-                                    color: moduleFontColor
-                                    font.pixelSize: 15 * panel.scaleFactor
-                                    font.family: "CaskaydiaMono Nerd Font"
-                                }
+                            Text {
+                                text: rightsidebarButton.networkIcon + "  " + rightsidebarButton.volumeIcon
+                                color: moduleFontColor
+                                font.pixelSize: 15 * panel.scaleFactor
+                                font.family: "CaskaydiaMono Nerd Font"
+                            }
                         }
 
                         MouseArea {
@@ -267,7 +601,7 @@ Variants {
                         Component.onCompleted: { nmcliProcess.start(); updateVolumeIcon() }
                     }
 
-                    // Button to trigger wlogout between tray and clock
+                    // Button to open Power Menu (al posto di wlogout)
                     Rectangle {
                         id: logoutButton
                         width: 35 * panel.scaleFactor
@@ -285,7 +619,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Hyprland.dispatch("exec ~/.config/hypr/scripts/wlogout.sh")
+                            onClicked: powerWindow.visible = !powerWindow.visible
                         }
 
                         Text {
@@ -298,7 +632,7 @@ Variants {
                     }
 
                     // Time on the far right
-                    Rectangle{ 
+                    Rectangle{
                         id: timeButton
                         width: 150 * panel.scaleFactor
                         height: 30 * panel.scaleFactor

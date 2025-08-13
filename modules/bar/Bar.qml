@@ -3,6 +3,7 @@ import QtQuick.Shapes
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
+import Quickshell.Services.Notifications
 import Qt.labs.platform 1.1
 import "widgets/"
 import org.kde.layershell 1.0
@@ -47,6 +48,27 @@ Variants {
 
                 ConnectionSettings {
                     id: connectionContent
+                    anchors.fill: parent
+                }
+            }
+
+            PanelWindow {
+                id: notificationWindow
+                screen: delegateRoot.modelData
+                anchors {
+                    top: true
+                    right: true
+                }
+                margins {
+                    right: 16
+                }
+                width: 300
+                height: notificationContent.implicitHeight
+                visible: false
+                color: "transparent"
+
+                Notifications {
+                    id: notificationContent
                     anchors.fill: parent
                 }
             }
@@ -180,7 +202,7 @@ Variants {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: Hyprland.dispatch("swaync-client -t -sw")
+                            onClicked: notificationWindow.visible = !notificationWindow.visible
                         }
 
                         Text {

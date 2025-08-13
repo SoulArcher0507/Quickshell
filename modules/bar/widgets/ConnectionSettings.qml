@@ -6,6 +6,7 @@ import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.UPower
+import Quickshell.Bluetooth
 
 Rectangle {
     id: root
@@ -39,7 +40,7 @@ Rectangle {
     }
 
     focus: true
-    Keys.onReleased: (event) => {
+    Keys.onReleased: function(event) {
         if (event.key === Qt.Key_Escape) {
             const w = QsWindow.window;
             if (w) w.visible = false; else root.visible = false;
@@ -47,11 +48,11 @@ Rectangle {
         }
     }
 
-    // Click fuori -> chiudi
+    // Click fuori -> chiudi (fix handler param)
     MouseArea {
         anchors.fill: parent
         z: 0
-        onClicked: {
+        onClicked: function(mouse) {
             const local = mapToItem(content, mouse.x, mouse.y);
             if (local.x < 0 || local.y < 0 || local.x > content.width || local.y > content.height) {
                 const w = QsWindow.window;
@@ -84,7 +85,7 @@ Rectangle {
             width: parent.width
             spacing: 16
 
-            // Wi-Fi
+            // Wi-Fi (placeholder come nel tuo file)
             Rectangle {
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 24
@@ -100,19 +101,52 @@ Rectangle {
                 }
             }
 
-            // Bluetooth
+            // Bluetooth — APRE IL MANAGER al click (modifica richiesta)
             Rectangle {
+                id: btButton
                 Layout.preferredWidth: 40
                 Layout.preferredHeight: 24
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                 radius: 12
-                color: "#333333"
+                color: (Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled) ? "#3a6fb3" : "#333333"
+
+                // icona
                 Text {
                     anchors.centerIn: parent
                     text: "\uf293"
                     color: "#ffffff"
                     font.pixelSize: 14
                     font.family: "CaskaydiaMono Nerd Font"
+                }
+
+                // area interattiva
+                MouseArea {
+                    id: btArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: function() {
+                        // Apri il Bluetooth manager (Blueman)
+                        Hyprland.dispatch("exec blueman-manager")
+                    }
+                }
+
+                // tooltip dinamico
+                ToolTip {
+                    visible: btArea.containsMouse
+                    delay: 250
+                    text: {
+                        if (!Bluetooth.defaultAdapter) return "Bluetooth non disponibile";
+                        let names = [];
+                        try {
+                            const n = Bluetooth.devices ? Bluetooth.devices.count : 0;
+                            for (let i = 0; i < n; ++i) {
+                                const d = Bluetooth.devices.get(i);
+                                if (d && d.connected) names.push(d.name || d.deviceName || d.address);
+                            }
+                        } catch(e) {}
+                        return names.length ? names.join(", ") : "Nessun dispositivo connesso";
+                    }
                 }
             }
 
@@ -179,7 +213,7 @@ Rectangle {
                                 anchors.fill: parent
                                 enabled: !seg.disabledBtn
                                 hoverEnabled: true
-                                onClicked: powerProfilesGroup.pp.profile = modelData.key
+                                onClicked: function() { powerProfilesGroup.pp.profile = modelData.key }
                             }
                         }
                     }
@@ -210,7 +244,7 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Hyprland.dispatch("exec pavucontrol")
+                        onClicked: function() { Hyprland.dispatch("exec pavucontrol") }
                     }
                 }
             }
@@ -223,12 +257,21 @@ Rectangle {
                 to: 100
                 value: 50
 
+                // più reattivo: usa PipeWire se disponibile, altrimenti fallback a wpctl
                 onValueChanged: {
                     if (root._syncingVolume) return
-                    // Imposta volume via wpctl (PipeWire)
                     const v = Math.round(value)
-                    Hyprland.dispatch("exec wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (v/100).toFixed(2))
-                    Hyprland.dispatch("exec wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (v === 0 ? "1" : "0"))
+
+                    if (Pipewire.defaultAudioSink && !isNaN(Pipewire.defaultAudioSink.volume)) {
+                        // set immediato via PipeWire API
+                        Pipewire.defaultAudioSink.volume = v / 100.0
+                        Pipewire.defaultAudioSink.mute   = (v === 0)
+                    } else {
+                        // fallback cli
+                        Hyprland.dispatch("exec wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (v/100).toFixed(2))
+                        Hyprland.dispatch("exec wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (v === 0 ? "1" : "0"))
+                    }
+
                     updateVolumeIconFrom(v, v === 0)
                     volDebounceRead.restart()
                 }
@@ -253,13 +296,14 @@ Rectangle {
                     border.color: "#888888"
                 }
 
+                // fix warning: usa parametro formale
                 WheelHandler {
-                    onWheel: {
+                    onWheel: function(e) {
                         const step = 5;
                         volumeSlider.value = Math.min(
                             volumeSlider.to,
                             Math.max(volumeSlider.from,
-                                     volumeSlider.value + step * wheel.angleDelta.y / 120)
+                                     volumeSlider.value + step * e.angleDelta.y / 120)
                         )
                     }
                 }
@@ -322,13 +366,14 @@ Rectangle {
                     border.color: "#888888"
                 }
 
+                // fix warning: usa parametro formale
                 WheelHandler {
-                    onWheel: {
+                    onWheel: function(e) {
                         const step = 5;
                         brightnessSlider.value = Math.min(
                             brightnessSlider.to,
                             Math.max(brightnessSlider.from,
-                                     brightnessSlider.value + step * wheel.angleDelta.y / 120)
+                                     brightnessSlider.value + step * e.angleDelta.y / 120)
                         )
                     }
                 }
@@ -442,25 +487,6 @@ Rectangle {
     }
 
     // ====== UPTIME ======
-    Timer {
-        id: uptimeTimer
-        interval: 60000
-        running: true
-        repeat: true
-        onTriggered: updateUptime()
-    }
-    function updateUptime() {
-        var proc = Qt.createQmlObject('import Qt.labs.platform 1.1; Process {}', root);
-        proc.command = "cat";
-        proc.arguments = ["/proc/uptime"];
-        proc.start();
-        proc.waitForFinished();
-        var seconds = parseFloat(proc.readAllStandardOutput().split(" ")[0]);
-        var hours = Math.floor(seconds / 3600);
-        var minutes = Math.floor((seconds % 3600) / 60);
-        uptimeText.text = "Uptime: " + hours + "h, " + minutes + "m";
-    }
-
     // Uptime string da `uptime -p`
     property string uptimeString: ""
     Process {

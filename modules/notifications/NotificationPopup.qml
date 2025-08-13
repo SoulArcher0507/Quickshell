@@ -11,15 +11,8 @@ PanelWindow {
     id: toaster
     color: "transparent"
 
-    // Ancorata al bordo alto-destro
-    anchors {
-        top: true
-        right: true
-    }
-    margins {
-        top: 16
-        right: 16
-    }
+    anchors { top: true; right: true }
+    margins { top: 16; right: 16 }
 
     // Mostra la finestra solo se ci sono toast
     visible: toastRepeater.count > 0
@@ -29,8 +22,7 @@ PanelWindow {
     // --- Notification server (unico, DBus) ---
     NS.NotificationServer {
         id: server
-
-        // Pubblicizza le capacità del server
+        // pubblicizza le capacità (hint; non obbligano i client)
         bodySupported: true
         bodyMarkupSupported: true
         bodyHyperlinksSupported: true
@@ -39,8 +31,9 @@ PanelWindow {
         actionIconsSupported: true
         imageSupported: true
         inlineReplySupported: true
+        keepOnReload: true
 
-        // Traccia le notifiche in arrivo (così compaiono a schermo)
+        // traccia le notifiche in arrivo
         onNotification: function(n) { n.tracked = true; }
     }
 
@@ -52,7 +45,7 @@ PanelWindow {
 
         Repeater {
             id: toastRepeater
-            // PRIMA: model: server.trackedNotifications
+            // ObjectModel<Notification> → usa la vista lista "values"
             model: server.trackedNotifications.values
             delegate: Toast { n: modelData; width: 380 }
         }
@@ -61,7 +54,8 @@ PanelWindow {
     // --- Componente "Toast" singolo ---
     component Toast: Rectangle {
         id: toast
-        required property var n  // NS.Notification
+        // n viene passato dal repeater, ma lo inizializziamo per evitare 'undefined'
+        property var n: null
 
         radius: 12
         color: "#222222cc"
@@ -75,30 +69,27 @@ PanelWindow {
         Behavior on opacity { NumberAnimation { duration: 140 } }
         Behavior on y       { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
-        Component.onCompleted: {
-            opacity = 1.0;
-            y = 0;
-        }
+        Component.onCompleted: { opacity = 1.0; y = 0 }
 
         // Mouse: pausa il timer e clic per dismettere
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
-            onEntered: autoClose.running = false
-            onExited:  if (!n.resident) autoClose.running = true
-            onClicked: n.dismiss()
+            onEntered:  autoClose.running = false
+            onExited:   autoClose.running = (!!toast.n && !toast.n.resident && toast.n.expireTimeout !== 0)
+            onClicked:  { if (toast.n) toast.n.dismiss() }
         }
 
-        // Auto-close (fallback se l'app non imposta expireTimeout)
+        // Auto-close: rispetta expireTimeout (in secondi); 0 = non scadere
         Timer {
             id: autoClose
             repeat: false
-            // parte solo se non è resident e se non è stato chiesto timeout infinito (0)
-            running: n && !n.resident && n.expireTimeout !== 0
-            interval: (n && n.expireTimeout > 0 ? n.expireTimeout * 1000 : 5000)
-            onTriggered: n.expire()
+            running: (!!toast.n && !toast.n.resident && toast.n.expireTimeout !== 0)
+            interval: (toast.n
+                       ? (toast.n.expireTimeout > 0 ? toast.n.expireTimeout * 1000 : 5000)
+                       : 5000)
+            onTriggered: if (toast.n) toast.n.expire()
         }
-
 
         ColumnLayout {
             anchors.fill: parent
@@ -118,21 +109,17 @@ PanelWindow {
                     IconImage {
                         id: richImage
                         anchors.fill: parent
-                        // IconImage è un wrapper di Image: usa "source"
-                        // Qui funziona con URL/percorsi reali (n.image può esserlo)
-                        source: (n.image && n.image.length) ? n.image : ""
+                        source: (toast.n && toast.n.image) ? toast.n.image : ""
                         visible: source.length > 0
                     }
 
-                    // 2) Fallback: icona di tema (per nome) usando un controllo QQC2
-                    // (Image non risolve i nomi di tema; un Button sì tramite icon.name)
+                    // 2) Fallback: icona di tema (per nome)
                     QQC2.Button {
                         anchors.fill: parent
-                        visible: !richImage.visible && (n.appIcon && n.appIcon.length)
+                        visible: !richImage.visible && !!(toast.n && toast.n.appIcon && toast.n.appIcon.length)
                         enabled: false
                         background: null
-                        icon.name: n.appIcon
-                        // forza dimensione dell'icona
+                        icon.name: (toast.n && toast.n.appIcon) ? toast.n.appIcon : ""
                         icon.width: 28
                         icon.height: 28
                     }
@@ -143,7 +130,7 @@ PanelWindow {
                     spacing: 2
 
                     Text {
-                        text: n.summary || n.appName
+                        text: (toast.n ? (toast.n.summary || toast.n.appName) : "")
                         color: "#ffffff"
                         font.bold: true
                         font.pixelSize: 14
@@ -152,8 +139,8 @@ PanelWindow {
                     }
 
                     Text {
-                        text: n.body
-                        textFormat: Text.RichText   // markup/hyperlink support
+                        text: (toast.n && toast.n.body) ? toast.n.body : ""
+                        textFormat: Text.RichText   // markup/hyperlink support (disabilita se vuoi PlainText)
                         wrapMode: Text.Wrap
                         color: "#dddddd"
                         font.pixelSize: 12
@@ -168,8 +155,10 @@ PanelWindow {
                     Layout.preferredWidth: 8
                     Layout.preferredHeight: 8
                     radius: 4
-                    color: n.urgency === NS.NotificationUrgency.Critical ? "#ff5252"
-                          : (n.urgency === NS.NotificationUrgency.Low ? "#7cb342" : "#4a9eff")
+                    color: (toast.n
+                        ? (toast.n.urgency === NS.NotificationUrgency.Critical ? "#ff5252"
+                           : (toast.n.urgency === NS.NotificationUrgency.Low ? "#7cb342" : "#4a9eff"))
+                        : "#4a9eff")
                     Layout.alignment: Qt.AlignTop
                 }
             }
@@ -179,13 +168,14 @@ PanelWindow {
                 id: actionsFlow
                 Layout.fillWidth: true
                 spacing: 8
-                visible: n.actions.length > 0
+                visible: !!(toast.n && toast.n.actions && toast.n.actions.length > 0)
 
                 Repeater {
-                    model: n.actions
+                    model: (toast.n && toast.n.actions) ? toast.n.actions : []
                     delegate: QQC2.Button {
+                        required property var modelData
                         text: modelData.text
-                        icon.name: n.hasActionIcons ? modelData.identifier : ""
+                        icon.name: (toast.n && toast.n.hasActionIcons) ? modelData.identifier : ""
                         onClicked: modelData.invoke()
                     }
                 }
@@ -193,14 +183,14 @@ PanelWindow {
 
             // Inline reply (se supportata)
             RowLayout {
-                visible: n.hasInlineReply
+                visible: (!!toast.n && toast.n.hasInlineReply)
                 Layout.fillWidth: true
                 spacing: 8
 
                 QQC2.TextField {
                     id: replyField
                     Layout.fillWidth: true
-                    placeholderText: n.inlineReplyPlaceholder || "Rispondi…"
+                    placeholderText: (toast.n && toast.n.inlineReplyPlaceholder) ? toast.n.inlineReplyPlaceholder : "Rispondi…"
                     onAccepted: sendBtn.clicked()
                 }
                 QQC2.Button {
@@ -208,9 +198,11 @@ PanelWindow {
                     text: "Invia"
                     enabled: replyField.text.length > 0
                     onClicked: {
-                        n.sendInlineReply(replyField.text);
-                        replyField.clear();
-                        if (!n.resident) n.dismiss();
+                        if (toast.n) {
+                            toast.n.sendInlineReply(replyField.text);
+                            replyField.clear();
+                            if (!toast.n.resident) toast.n.dismiss();
+                        }
                     }
                 }
             }
@@ -218,9 +210,8 @@ PanelWindow {
 
         // Anima l'uscita quando viene chiusa da remoto
         Connections {
-            target: n
-            enabled: !!n
-            function onClosed(reason) {
+            target: toast.n ? toast.n : null    // evita "Unable to assign [undefined] to QObject*"
+            function onClosed(reason) {         // segnale corretto: 'closed(reason)'
                 toast.opacity = 0.0;
                 toast.y = -6;
             }

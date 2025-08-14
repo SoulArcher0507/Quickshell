@@ -528,7 +528,7 @@ Variants {
                     // Time on the far right
                     Rectangle{
                         id: timeButton
-                        width: 150 * panel.scaleFactor
+                        width: 147 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor

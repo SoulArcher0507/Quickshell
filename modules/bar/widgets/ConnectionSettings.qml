@@ -34,6 +34,30 @@ Rectangle {
     property real   rxBps: 0
     property real   txBps: 0
 
+    // --- helper per rigenerare il comando IP quando cambia interfaccia ---
+    function _refreshIpCommand() {
+        ipProc.command = [
+            "bash", "-lc",
+            "IF=\"" + netIface + "\"; " +
+            "[ -n \"$IF\" ] && ip -4 addr show dev \"$IF\" | awk '/inet /{print $2}' | sed 's#/.*##' | head -n1 || true"
+        ];
+    }
+
+    // Aggiorna IP e reset contatori appena cambia l'interfaccia (aggiornamento reattivo in background)
+    onNetIfaceChanged: {
+        if (netIface && netIface.length) {
+            _refreshIpCommand();     // <-- aggiorna il comando legato all'interfaccia corrente
+            ipProc.running = false;  // riavvia il process per essere sicuri
+            ipProc.running = true;
+
+            _lastRxBytes = 0;
+            _lastTxBytes = 0;
+            _lastNetTms  = 0;
+        } else {
+            netIp4 = "";
+        }
+    }
+
     function _humanBitsPerSec(bps) {
         var u = ["b/s","Kb/s","Mb/s","Gb/s","Tb/s"];
         var val = bps;
@@ -62,7 +86,6 @@ Rectangle {
         return "";                 // no network
     }
 
-
     Component.onCompleted: {
         const w = QsWindow.window;
         if (w) {
@@ -79,7 +102,7 @@ Rectangle {
         syncVolumeFromSystem();
         brightnessReadProc.running = true;
 
-        // rete init
+        // rete init (prima run immediata; poi continuerà il timer con triggeredOnStart)
         netInfoProc.running = true;
     }
 
@@ -252,6 +275,14 @@ Rectangle {
                     { key: PowerProfile.Performance, icon: "\uf135",  requiresPerf: true  }
                 ]
 
+                // <<< HOVER TOOLTIP POWER PROFILES >>>
+                function profileName(k) {
+                    if (k === PowerProfile.PowerSaver)  return "Power Saver";
+                    if (k === PowerProfile.Balanced)    return "Balanced";
+                    if (k === PowerProfile.Performance) return "Performance";
+                    return "";
+                }
+
                 Row {
                     anchors.fill: parent
                     spacing: powerProfilesGroup.segmentSpacing
@@ -283,10 +314,25 @@ Rectangle {
                             }
 
                             MouseArea {
+                                id: segArea
                                 anchors.fill: parent
                                 enabled: !seg.disabledBtn
                                 hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
                                 onClicked: function() { powerProfilesGroup.pp.profile = modelData.key; }
+                            }
+
+                            // Tooltip con nome profilo (+ stato)
+                            ToolTip {
+                                visible: segArea.containsMouse
+                                delay: 200
+                                text: {
+                                    var name = powerProfilesGroup.profileName(modelData.key);
+                                    var extra = "";
+                                    if (seg.disabledBtn) extra = " (non disponibile)";
+                                    else if (powerProfilesGroup.pp.profile === modelData.key) extra = " (active)";
+                                    return name + extra;
+                                }
                             }
                         }
                     }
@@ -462,7 +508,7 @@ Rectangle {
 
     function parseWpctlVolume(out) {
         const s = (out || "").trim();
-        const m = s.match(/([0-9.]+)/);
+               const m = s.match(/([0-9.]+)/);
         const vol = m ? Math.round(parseFloat(m[1]) * 100) : null;
         const muted = s.indexOf("MUTED") !== -1;
         return { vol: vol, muted: muted };
@@ -603,22 +649,16 @@ Rectangle {
                 netIface = parts[0] || "";
                 netType  = parts[1] || "unknown";
                 netName  = parts[2] || "";
-                ipProc.running = true;
-                // reset contatori per calcolo velocità
-                root._lastRxBytes = 0;
-                root._lastTxBytes = 0;
-                root._lastNetTms  = 0;
-                // Avvia polling rx/tx
-                rxTxTimer.running = !!netIface;
+                // ipProc viene avviato da onNetIfaceChanged
             }
         }
     }
 
-    // IP v4 dell'interfaccia
+    // IP v4 dell'interfaccia (comando aggiornato da _refreshIpCommand)
     Process {
         id: ipProc
         running: false
-        command: ["bash", "-lc", "IF=\"" + netIface + "\"; [ -n \"$IF\" ] && ip -4 addr show dev \"$IF\" | awk '/inet /{print $2}' | sed 's#/.*##' | head -n1 || true" ]
+        command: ["bash", "-lc", "true"] // placeholder, sostituito da _refreshIpCommand()
         stdout: StdioCollector {
             onStreamFinished: {
                 netIp4 = (text || "").trim();
@@ -632,17 +672,17 @@ Rectangle {
         interval: 4000
         running: true
         repeat: true
+        triggeredOnStart: true
         onTriggered: netInfoProc.running = true
     }
 
-    // Calcolo velocità ↓/↑ da sysfs
+    // Calcolo velocità ↓/↑ da sysfs (parte/si ferma automaticamente in base a netIface)
     Timer {
         id: rxTxTimer
         interval: 1000
-        running: false
+        running: netIface && netIface.length > 0
         repeat: true
         onTriggered: {
-            if (!netIface) return;
             rxTxProc.running = true;
         }
     }

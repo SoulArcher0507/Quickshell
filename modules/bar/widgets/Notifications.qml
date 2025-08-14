@@ -2,12 +2,22 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell.Services.Notifications
-import Quickshell.Services.Mpris   // MPRIS per il media manager
+import Quickshell.Services.Mpris
+import Qt.labs.platform 1.1 as Labs   // <-- per StandardPaths
 
 Rectangle {
     id: root
     property int margin: 16
-    anchors.fill: parent
+    // >> Larghezza forzata e stabile <<
+    readonly property int popupWidth: Math.floor(
+        root.window && root.window.screen && root.window.screen.geometry
+            ? Math.min(Math.max(root.window.screen.geometry.width * 0.38, 520), 720)
+            : 560
+    )
+    width: popupWidth
+    implicitWidth: popupWidth
+    height: implicitHeight
+
     color: "#222222"
     radius: 8
     border.color: "#555555"
@@ -32,11 +42,14 @@ Rectangle {
         actionsSupported: true
         imageSupported: true
         keepOnReload: true
-
         onNotification: (n) => { if (!root.doNotDisturb) n.tracked = true }
     }
 
-    // ===== Helpers icone/app =====
+    // ===== Cache icone (evita I/O sincrono) =====
+    property var _iconCache: ({})
+    property var _artCache:  ({})
+
+    // --- Helpers originali (rimangono per fallback) ---
     function _fileExists(urlOrPath) {
         var url = urlOrPath.startsWith("file:") ? urlOrPath : "file://" + urlOrPath
         try { var xhr = new XMLHttpRequest(); xhr.open("GET", url, false); xhr.send()
@@ -53,45 +66,76 @@ Rectangle {
         return ""
     }
     function _readDesktopIcon(desktopId) {
-        const appDirs = [ "/usr/share/applications/","/usr/local/share/applications/",
-            Qt.resolvedUrl("~/.local/share/applications/").replace("qml/","") ]
+        if (!desktopId) return ""
+        const home = Labs.StandardPaths.writableLocation(Labs.StandardPaths.HomeLocation)
+        const appDirs = [
+            "/usr/share/applications/",
+            "/usr/local/share/applications/",
+            home + "/.local/share/applications/"
+        ]
         for (let d of appDirs) {
-            let f = d + desktopId + (desktopId.endsWith(".desktop") ? "" : ".desktop")
+            let f = d + (desktopId.endsWith(".desktop") ? desktopId : desktopId + ".desktop")
             if (_fileExists(f)) {
-                try { var xhr = new XMLHttpRequest(); xhr.open("GET", f.startsWith("file:") ? f : "file://" + f, false)
-                      xhr.send(); let m = xhr.responseText.match(/^\s*Icon\s*=\s*(.+)\s*$/mi)
-                      if (m && m[1]) return m[1].trim() } catch (e) {}
+                try {
+                    var xhr = new XMLHttpRequest()
+                    xhr.open("GET", f.startsWith("file:") ? f : "file://" + f, false)
+                    xhr.send()
+                    let m = xhr.responseText.match(/^\s*Icon\s*=\s*(.+)\s*$/mi)
+                    if (m && m[1]) return m[1].trim()
+                } catch (e) {}
             }
         }
         return ""
     }
+
+    // ===== Versione veloce e cache-ata =====
     function _iconSourceFor(n) {
-        function pick(s){return (typeof s==="string"&&s.length>0)?s:""}
-        const direct = [pick(n&&n.appIconName),pick(n&&n.iconName),pick(n&&n.appIcon),pick(n&&n.image)]
-        for (let name of direct) {
-            if (!name) continue
-            const lower = name.toLowerCase()
-            const looksPath = lower.startsWith("/")||lower.startsWith("file:")||lower.startsWith("qrc:")||name.indexOf(".")!==-1
-            if (looksPath) return lower.startsWith("file:") ? name : "file://" + name
-            let file = _guessIconFileFromName(name); return file.length>0 ? file : "image://theme/" + name
+        const key = JSON.stringify({
+            appIconName: n && n.appIconName, iconName: n && n.iconName,
+            appIcon: n && n.appIcon, image: n && n.image,
+            desktop: (n && (n.desktopEntry || n.desktopId)),
+            appName: n && n.appName
+        })
+        if (_iconCache[key]) return _iconCache[key]
+
+        function pick(s){ return (typeof s === "string" && s.length > 0) ? s : "" }
+
+        const pathish = pick(n && n.image) || pick(n && n.appIcon)
+        if (pathish) {
+            const low = pathish.toLowerCase()
+            const src = (low.startsWith("file:") || low.startsWith("qrc:") || low.startsWith("/"))
+                        ? (low.startsWith("file:") ? pathish : "file://" + pathish)
+                        : ("image://theme/" + pathish)
+            _iconCache[key] = src; return src
         }
-        const desktopId = pick(n&&(n.desktopEntry||n.desktopId||n.desktop))
-        if (desktopId) {
-            const icon = _readDesktopIcon(desktopId)
-            if (icon) {
-                const lower = icon.toLowerCase()
-                const looksPath = lower.startsWith("/")||lower.startsWith("file:")||icon.indexOf(".")!==-1
-                if (looksPath) return lower.startsWith("file:") ? icon : "file://" + icon
-                let f = _guessIconFileFromName(icon); return f.length>0 ? f : ("image://theme/" + icon)
-            }
+
+        const byName = pick(n && n.appIconName) || pick(n && n.iconName)
+        if (byName) { _iconCache[key] = "image://theme/" + byName; return _iconCache[key] }
+
+        const desk = pick(n && (n.desktopEntry || n.desktopId))
+        if (desk) { _iconCache[key] = "image://theme/" + desk.replace(/\.desktop$/,""); return _iconCache[key] }
+
+        const appn = pick(n && n.appName)
+        if (appn) { _iconCache[key] = "image://theme/" + appn.replace(/\s+/g,"-").toLowerCase(); return _iconCache[key] }
+
+        _iconCache[key] = "image://theme/dialog-information"
+        return _iconCache[key]
+    }
+
+    function artFor(p){
+        if (!p) return "image://theme/audio-x-generic"
+        const key = JSON.stringify({ art:p.trackArtUrl, desk:p.desktopEntry, id:p.identity })
+        if (_artCache[key]) return _artCache[key]
+
+        if (p.trackArtUrl && p.trackArtUrl.length>0) { _artCache[key] = p.trackArtUrl; return _artCache[key] }
+        if (p.desktopEntry && p.desktopEntry.length>0) {
+            _artCache[key] = "image://theme/" + p.desktopEntry.replace(/\.desktop$/,""); return _artCache[key]
         }
-        const appName = pick(n&&n.appName)
-        if (appName) {
-            let norm = appName.replace(/\s+/g,"-").toLowerCase()
-            let f = _guessIconFileFromName(norm); if (f.length===0) f=_guessIconFileFromName(appName)
-            if (f.length>0) return f; return "image://theme/" + norm
+        if (p.identity && p.identity.length>0) {
+            _artCache[key] = "image://theme/" + p.identity.replace(/\s+/g,"-").toLowerCase(); return _artCache[key]
         }
-        return "image://theme/dialog-information"
+        _artCache[key] = "image://theme/audio-x-generic"
+        return _artCache[key]
     }
 
     // ===== Layout =====
@@ -110,13 +154,10 @@ Rectangle {
             color: root.doNotDisturb ? "#444444" : "#333333"
             border.color: "#555555"
             clip: true
-
             Text {
                 anchors.centerIn: parent
                 text: root.doNotDisturb ? "Disable Do Not Disturb" : "Enable Do Not Disturb"
-                color: "#ffffff"
-                font.pixelSize: 14
-                font.family: "Fira Sans Semibold"
+                color: "#ffffff"; font.pixelSize: 14; font.family: "Fira Sans Semibold"
             }
             MouseArea { anchors.fill: parent; onClicked: root.doNotDisturb = !root.doNotDisturb }
         }
@@ -130,59 +171,13 @@ Rectangle {
             border.color: "#555555"
             border.width: 1
             clip: true
-            implicitHeight: 166
+            implicitHeight: 170
 
-            // IMPORTANT: binding diretto, così si aggiorna quando compaiono/spariscono player
             property var players: Mpris.players.values
             property int currentIndex: 0
-            readonly property var cp: players.length > 0 ? players[Math.min(currentIndex, players.length-1)] : null
+            readonly property var cp: players.length>0 ? players[Math.min(currentIndex, players.length-1)] : null
             onPlayersChanged: if (currentIndex >= players.length) currentIndex = Math.max(0, players.length-1)
 
-            // --- Progress (robusto a µs/ms/s) ---
-            function _toSeconds(v) { if (!v || v<0) return 0; if (v>1e7) return Math.floor(v/1e6); if (v>1e4) return Math.floor(v/1e3); return Math.floor(v) }
-            function _fmt(s)      { let m=Math.floor(s/60), ss=s%60; return (m<10?"0"+m:m)+":"+(ss<10?"0"+ss:ss) }
-
-            property int durationSec: 0
-            property int positionSec: 0
-            property bool _seeking: false
-
-            // Poll leggero per posizione/durata
-            Timer {
-                interval: 500; running: true; repeat: true
-                onTriggered: {
-                    if (mediaCarousel.cp) {
-                        const p = mediaCarousel.cp
-                        mediaCarousel.durationSec  = mediaCarousel._toSeconds(p.length !== undefined ? p.length : (p.trackLength || 0))
-                        mediaCarousel.positionSec  = mediaCarousel._toSeconds(p.position || 0)
-                        if (!mediaCarousel._seeking) {
-                            progressSlider.to = Math.max(1, mediaCarousel.durationSec)
-                            progressSlider.value = Math.min(mediaCarousel.positionSec, progressSlider.to)
-                        }
-                    } else {
-                        mediaCarousel.durationSec = 0
-                        mediaCarousel.positionSec = 0
-                        progressSlider.to = 1
-                        if (!mediaCarousel._seeking) progressSlider.value = 0
-                    }
-                }
-            }
-
-            function artFor(p){
-                if (!p) return "image://theme/audio-x-generic"
-                if (p.trackArtUrl && p.trackArtUrl.length>0) return p.trackArtUrl
-                if (p.desktopEntry && p.desktopEntry.length>0) {
-                    const icon = _readDesktopIcon(p.desktopEntry)
-                    if (icon) {
-                        const lower = icon.toLowerCase()
-                        const looksPath = lower.startsWith("/")||lower.startsWith("file:")||icon.indexOf(".")!==-1
-                        return looksPath ? (lower.startsWith("file:")?icon:"file://"+icon)
-                                        : (_guessIconFileFromName(icon) || "image://theme/" + icon)
-                    }
-                }
-                return "image://theme/audio-x-generic"
-            }
-
-            // ********* QUI: RowLayout (non Row) *********
             RowLayout {
                 anchors.fill: parent
                 anchors.margins: 8
@@ -206,7 +201,7 @@ Rectangle {
                     id: card
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    height: parent.height - 16
+                    height: parent.height
                     radius: 10
                     color: "#333333"
                     border.color: "#444444"
@@ -217,24 +212,28 @@ Rectangle {
                         anchors.margins: 10
                         spacing: 10
 
-                        // Header: copertina + titolo (RowLayout per far riempire il testo)
+                        // Header: cover PICCOLA + titolo a destra
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
 
                             Image {
                                 id: art
-                                source: mediaCarousel.artFor(mediaCarousel.cp)
-                                width: 48; height: 48
+                                source: root.artFor(mediaCarousel.cp)
+                                Layout.preferredWidth: 40
+                                Layout.preferredHeight: 40
+                                sourceSize.width: 40
+                                sourceSize.height: 40
                                 fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
                                 smooth: true
                             }
 
                             Text {
                                 Layout.fillWidth: true
                                 text: mediaCarousel.cp
-                                    ? (mediaCarousel.cp.trackTitle || mediaCarousel.cp.identity || "Media")
-                                    : "Nessun player MPRIS attivo"
+                                      ? (mediaCarousel.cp.trackTitle || mediaCarousel.cp.identity || "Media")
+                                      : "Nessun player MPRIS attivo"
                                 color: "#ff7f32"
                                 font.pixelSize: 16
                                 font.family: "Fira Sans Semibold"
@@ -243,75 +242,45 @@ Rectangle {
                             }
                         }
 
-                        // Controlli
+                        // Controlli sotto (prec / play-pausa / succ)
                         Row {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 10
 
                             Rectangle {
-                                width: 32; height: 32; radius: 16
+                                width: 30; height: 30; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: "«"; color: ok ? "#dddddd" : "#777777"; font.pixelSize: 14; font.family: "Fira Sans Semibold" }
+                                Text { anchors.centerIn: parent; text: "«"; color: ok ? "#dddddd" : "#777777";
+                                       font.pixelSize: 13; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.previous && mediaCarousel.cp.previous() }
                             }
                             Rectangle {
-                                width: 36; height: 36; radius: 18
+                                width: 34; height: 34; radius: 17
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
                                 Text {
                                     anchors.centerIn: parent
                                     text: (mediaCarousel.cp && mediaCarousel.cp.isPlaying) ? "▮▮" : "▶"
-                                    color: ok ? "#dddddd" : "#777777"; font.pixelSize: 14; font.family: "Fira Sans Semibold"
+                                    color: ok ? "#dddddd" : "#777777"
+                                    font.pixelSize: 13
+                                    font.family: "Fira Sans Semibold"
                                 }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.togglePlaying && mediaCarousel.cp.togglePlaying() }
                             }
                             Rectangle {
-                                width: 32; height: 32; radius: 16
+                                width: 30; height: 30; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: "»"; color: ok ? "#dddddd" : "#777777"; font.pixelSize: 14; font.family: "Fira Sans Semibold" }
+                                Text { anchors.centerIn: parent; text: "»"; color: ok ? "#dddddd" : "#777777";
+                                       font.pixelSize: 13; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.next && mediaCarousel.cp.next() }
-                            }
-                        }
-
-                        // Progresso + cursore (seek)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-
-                            Slider {
-                                id: progressSlider
-                                Layout.fillWidth: true
-                                from: 0
-                                to: Math.max(1, mediaCarousel.durationSec)
-                                value: Math.min(mediaCarousel.positionSec, to)
-                                enabled: !!mediaCarousel.cp
-                                onPressedChanged: {
-                                    mediaCarousel._seeking = pressed
-                                    if (!pressed && mediaCarousel.cp) {
-                                        const target = Math.floor(value)
-                                        const cur = mediaCarousel.positionSec
-                                        if (typeof mediaCarousel.cp.setPosition === "function")
-                                            mediaCarousel.cp.setPosition(target)
-                                        else if (typeof mediaCarousel.cp.seek === "function")
-                                            mediaCarousel.cp.seek((target - cur) * 1000000) // delta in µs
-                                    }
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-                                Text { text: mediaCarousel._fmt(Math.min(progressSlider.value, mediaCarousel.durationSec)); color: "#bbbbbb"; font.pixelSize: 11 }
-                                Item { Layout.fillWidth: true; height: 1 }
-                                Text { text: mediaCarousel.durationSec>0 ? mediaCarousel._fmt(mediaCarousel.durationSec) : "--:--"; color: "#bbbbbb"; font.pixelSize: 11 }
                             }
                         }
 
@@ -344,7 +313,6 @@ Rectangle {
         }
         // =================== FINE MEDIA MANAGER =====================
 
-
         // Barra "Clear all"
         Rectangle {
             id: clearBar
@@ -354,7 +322,6 @@ Rectangle {
             radius: 6
             color: "#2e2e2e"
             border.color: "#555555"
-
             Button {
                 id: clearAllBtn
                 anchors.centerIn: parent
@@ -396,6 +363,9 @@ Rectangle {
                 color: "#333333"
                 border.color: "#555555"
 
+                // calcola una sola volta l'icona (no I/O, no ricalcoli)
+                property string iconSource: root._iconSourceFor(modelData)
+
                 Column {
                     id: contentCol
                     anchors.fill: parent
@@ -411,8 +381,9 @@ Rectangle {
                         Image {
                             id: appIcon
                             width: 20; height: 20
-                            source: root._iconSourceFor(modelData)
+                            source: iconSource
                             fillMode: Image.PreserveAspectFit
+                            asynchronous: true
                             smooth: true; cache: true
                         }
 

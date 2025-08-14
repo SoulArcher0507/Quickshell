@@ -18,12 +18,19 @@ Rectangle {
     border.width: 1
     implicitHeight: content.implicitHeight + margin * 2
 
-    // Guard per sync slider <-> sistema
+    // Guard per sync interni
     property bool _syncingVolume: false
     property bool _brightnessInited: false
 
+    // ---- Volume: consenti >100% (PipeWire supporta overdrive) ----
+    property int volumeMaxPercent: 150
+
+    // ---- Luminosità: consenti >100% (fino a 150%) + hook opzionale per boost software ----
+    property int  brightnessMaxPercent: 150
+    property string extraBrightnessCommandTemplate: ""
+    property int _brightnessTarget: -1
+
     // ====== RETE: stato e misure ======
-    // tipo: "ethernet" | "wifi" | "down" | "unknown"
     property string netType: "unknown"
     property string netIface: ""
     property string netName: ""
@@ -43,11 +50,10 @@ Rectangle {
         ];
     }
 
-    // Aggiorna IP e reset contatori appena cambia l'interfaccia (aggiornamento reattivo in background)
     onNetIfaceChanged: {
         if (netIface && netIface.length) {
-            _refreshIpCommand();     // <-- aggiorna il comando legato all'interfaccia corrente
-            ipProc.running = false;  // riavvia il process per essere sicuri
+            _refreshIpCommand();
+            ipProc.running = false;
             ipProc.running = true;
 
             _lastRxBytes = 0;
@@ -80,10 +86,9 @@ Rectangle {
     }
 
     function _pickIconForNet() {
-        // Emoji/Unicode compatibili con Fira Sans (fallback automatico a Noto Emoji)
-        if (netType === "ethernet") return ""; // wired network
-        if (netType === "wifi")     return ""; // bars
-        return "";                 // no network
+        if (netType === "ethernet") return "";
+        if (netType === "wifi")     return "";
+        return "";
     }
 
     Component.onCompleted: {
@@ -100,10 +105,21 @@ Rectangle {
         }
         // Sync iniziale
         syncVolumeFromSystem();
+        volPoll.running = (Pipewire.defaultAudioSink === null || Pipewire.defaultAudioSink === undefined);
+
+        // luminosità: prima lettura
         brightnessReadProc.running = true;
 
-        // rete init (prima run immediata; poi continuerà il timer con triggeredOnStart)
+        // rete init
         netInfoProc.running = true;
+    }
+
+    // quando la finestra diventa visibile: sync immediato
+    onVisibleChanged: {
+        if (visible) {
+            syncVolumeFromSystem();
+            brightnessReadProc.running = true;
+        }
     }
 
     focus: true
@@ -115,7 +131,7 @@ Rectangle {
         }
     }
 
-    // Click fuori -> chiudi (fix handler param)
+    // Click fuori -> chiudi
     MouseArea {
         anchors.fill: parent
         z: 0
@@ -126,6 +142,13 @@ Rectangle {
                 if (w) w.visible = false; else root.visible = false;
             }
         }
+    }
+
+    // --- helper: imposta valore slider da una x locale (click/drag su barra) ---
+    function _setSliderFromX(slider, x) {
+        const rel = Math.max(0, Math.min(1,
+                     (x - slider.leftPadding) / Math.max(1, slider.availableWidth)));
+        slider.value = slider.from + rel * (slider.to - slider.from);
     }
 
     Column {
@@ -177,7 +200,6 @@ Rectangle {
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: function() {
-                        // iwgtk -> nm-connection-editor -> nmtui su primo terminale trovato
                         Hyprland.dispatch(
                             "exec bash -lc '" +
                             "if command -v iwgtk >/dev/null 2>&1; then exec iwgtk; " +
@@ -249,7 +271,7 @@ Rectangle {
             // Spacer
             Item { Layout.fillWidth: true }
 
-            // Profili energia (come da tuo file)
+            // Profili energia
             Rectangle {
                 id: powerProfilesGroup
                 Layout.preferredHeight: 24
@@ -275,7 +297,6 @@ Rectangle {
                     { key: PowerProfile.Performance, icon: "\uf135",  requiresPerf: true  }
                 ]
 
-                // <<< HOVER TOOLTIP POWER PROFILES >>>
                 function profileName(k) {
                     if (k === PowerProfile.PowerSaver)  return "Power Saver";
                     if (k === PowerProfile.Balanced)    return "Balanced";
@@ -322,7 +343,6 @@ Rectangle {
                                 onClicked: function() { powerProfilesGroup.pp.profile = modelData.key; }
                             }
 
-                            // Tooltip con nome profilo (+ stato)
                             ToolTip {
                                 visible: segArea.containsMouse
                                 delay: 200
@@ -340,7 +360,7 @@ Rectangle {
             }
         }
 
-        // SLIDER 1 — VOLUME
+        // SLIDER 1 — VOLUME (live, mouse/rotella, >100%)
         RowLayout {
             id: volumeRow
             width: parent.width
@@ -373,24 +393,37 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 from: 0
-                to: 100
+                to: root.volumeMaxPercent
                 value: 50
+                live: true
 
-                onValueChanged: {
-                    if (root._syncingVolume) return;
-                    const v = Math.round(value);
-
-                    if (Pipewire.defaultAudioSink && !isNaN(Pipewire.defaultAudioSink.volume)) {
-                        Pipewire.defaultAudioSink.volume = v / 100.0;
-                        Pipewire.defaultAudioSink.mute   = (v === 0);
-                    } else {
-                        Hyprland.dispatch("exec wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (v/100).toFixed(2));
-                        Hyprland.dispatch("exec wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (v === 0 ? "1" : "0"));
+                // click su qualsiasi punto della barra
+                TapHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.TouchScreen
+                    onTapped: {
+                        const local = volumeSlider.mapFromScene(eventPoint.scenePosition);
+                        _setSliderFromX(volumeSlider, local.x);
+                        applyVolume(Math.round(volumeSlider.value));
                     }
-
-                    updateVolumeIconFrom(v, v === 0);
-                    volDebounceRead.restart();
                 }
+                // drag su tutta la barra
+                DragHandler {
+                    target: null
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.TouchScreen
+                    onCentroidChanged: {
+                        if (active) {
+                            const local = volumeSlider.mapFromScene(centroid.scenePosition);
+                            _setSliderFromX(volumeSlider, local.x);
+                            applyVolume(Math.round(volumeSlider.value));
+                        }
+                    }
+                    onActiveChanged: {
+                        if (!active) volDebounceRead.restart();
+                    }
+                }
+
+                // continua a funzionare anche il drag nativo dell'handle
+                onMoved: applyVolume(Math.round(value))
 
                 background: Rectangle {
                     x: volumeSlider.leftPadding
@@ -420,12 +453,13 @@ Rectangle {
                             Math.max(volumeSlider.from,
                                      volumeSlider.value + step * e.angleDelta.y / 120)
                         );
+                        applyVolume(Math.round(volumeSlider.value));
                     }
                 }
             }
         }
 
-        // SLIDER 2 — LUMINOSITÀ
+        // SLIDER 2 — LUMINOSITÀ (live, mouse/rotella, >100% con hook opzionale)
         RowLayout {
             id: brightnessRow
             width: parent.width
@@ -452,13 +486,33 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignVCenter
                 from: 0
-                to: 100
+                to: root.brightnessMaxPercent
                 value: 0
+                live: true
 
-                onValueChanged: {
-                    if (!root._brightnessInited) return;
-                    Hyprland.dispatch("exec brightnessctl set " + Math.round(value) + "%");
-                    updateBrightnessIcon();
+                // click ovunque sulla barra
+                TapHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.TouchScreen
+                    onTapped: {
+                        const local = brightnessSlider.mapFromScene(eventPoint.scenePosition);
+                        _setSliderFromX(brightnessSlider, local.x);
+                        applyBrightness(Math.round(brightnessSlider.value));
+                    }
+                }
+                // drag su tutta la barra
+                DragHandler {
+                    target: null
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad | PointerDevice.TouchScreen
+                    onCentroidChanged: {
+                        if (active) {
+                            const local = brightnessSlider.mapFromScene(centroid.scenePosition);
+                            _setSliderFromX(brightnessSlider, local.x);
+                            applyBrightness(Math.round(brightnessSlider.value));
+                        }
+                    }
+                    onActiveChanged: {
+                        if (!active) brightDebounceRead.restart();
+                    }
                 }
 
                 background: Rectangle {
@@ -489,13 +543,14 @@ Rectangle {
                             Math.max(brightnessSlider.from,
                                      brightnessSlider.value + step * e.angleDelta.y / 120)
                         );
+                        applyBrightness(Math.round(brightnessSlider.value));
                     }
                 }
             }
         }
     }
 
-    // ====== VOLUME: lettura/sync con il sistema ======
+    // ====== VOLUME: helper ======
     function updateVolumeIconFrom(v, muted) {
         if (muted || v === 0) {
             volumeIcon.text = "\uf026";
@@ -506,10 +561,30 @@ Rectangle {
         }
     }
 
+    function applyVolume(vPercent) {
+        const vmax = Math.max(100, root.volumeMaxPercent);
+        const v = Math.max(0, Math.min(vmax, vPercent));
+        const ratio = (v / 100.0);
+
+        if (Pipewire.defaultAudioSink && !isNaN(Pipewire.defaultAudioSink.volume) && v <= 100) {
+            Pipewire.defaultAudioSink.volume = ratio;
+            Pipewire.defaultAudioSink.mute   = (v === 0);
+        } else {
+            Hyprland.dispatch("exec wpctl set-volume @DEFAULT_AUDIO_SINK@ " + ratio.toFixed(2));
+            Hyprland.dispatch("exec wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (v === 0 ? "1" : "0"));
+        }
+
+        updateVolumeIconFrom(v, v === 0);
+        volDebounceRead.restart();
+    }
+
     function parseWpctlVolume(out) {
         const s = (out || "").trim();
-               const m = s.match(/([0-9.]+)/);
-        const vol = m ? Math.round(parseFloat(m[1]) * 100) : null;
+        let pct = null;
+        const mPct = s.match(/\[([0-9]{1,3})%\]/);
+        if (mPct) pct = parseInt(mPct[1], 10);
+        const m = s.match(/([0-9]+(?:\.[0-9]+)?)/);
+        const vol = (pct !== null) ? pct : (m ? Math.round(parseFloat(m[1]) * 100) : null);
         const muted = s.indexOf("MUTED") !== -1;
         return { vol: vol, muted: muted };
     }
@@ -535,6 +610,9 @@ Rectangle {
             onStreamFinished: {
                 const r = parseWpctlVolume(text);
                 if (r.vol !== null) {
+                    if (r.vol > root.volumeMaxPercent) {
+                        root.volumeMaxPercent = Math.min(200, Math.max(root.volumeMaxPercent, r.vol));
+                    }
                     root._syncingVolume = true;
                     volumeSlider.value = r.vol;
                     updateVolumeIconFrom(r.vol, r.muted);
@@ -544,28 +622,45 @@ Rectangle {
         }
     }
 
+    // Poll di fallback (quando NON c'è sink PipeWire)
     Timer {
         id: volPoll
         interval: 1500
-        running: true
+        running: Pipewire.defaultAudioSink === null || Pipewire.defaultAudioSink === undefined
         repeat: true
         onTriggered: volReadProc.running = true
     }
+
+    // Poll visibile per volume (leggero)
+    Timer {
+        id: visibleVolTick
+        interval: 400
+        running: root.visible
+        repeat: true
+        onTriggered: {
+            if (!volumeSlider.pressed) volReadProc.running = true;
+        }
+    }
+
+    // Debounce volume
     Timer {
         id: volDebounceRead
-        interval: 300
+        interval: 220
         repeat: false
-        onTriggered: volReadProc.running = true
+        onTriggered: { if (!volumeSlider.pressed) volReadProc.running = true; }
     }
 
     Connections {
         target: Pipewire.defaultAudioSink
-        function onVolumeChanged() { syncVolumeFromSystem(); }
-        function onMuteChanged()   { syncVolumeFromSystem(); }
+        function onVolumeChanged() { if (!volumeSlider.pressed) syncVolumeFromSystem(); }
+        function onMuteChanged()   { if (!volumeSlider.pressed) syncVolumeFromSystem(); }
     }
     Connections {
         target: Pipewire
-        function onDefaultAudioSinkChanged() { syncVolumeFromSystem(); }
+        function onDefaultAudioSinkChanged() {
+            volPoll.running = (Pipewire.defaultAudioSink === null || Pipewire.defaultAudioSink === undefined);
+            syncVolumeFromSystem();
+        }
     }
 
     // ====== LUMINOSITÀ ======
@@ -578,9 +673,50 @@ Rectangle {
                 const t = (text || "").trim();
                 const p = parseInt(t, 10);
                 root._brightnessInited = true;
-                brightnessSlider.value = (!isNaN(p) && p >= 0) ? p : 50;
+
+                const hw = (!isNaN(p) && p >= 0) ? p : 50;
+                const target = (root._brightnessTarget >= 0) ? root._brightnessTarget : hw;
+                const show = Math.max(hw, target);
+
+                if (!brightnessSlider.pressed) brightnessSlider.value = show;
                 updateBrightnessIcon();
             }
+        }
+    }
+
+    function applyBrightness(vPercent) {
+        const bmax = Math.max(100, root.brightnessMaxPercent);
+        const v = Math.max(0, Math.min(bmax, vPercent));
+        root._brightnessTarget = v;
+
+        const hw = Math.min(100, v);
+        Hyprland.dispatch("exec brightnessctl set " + Math.round(hw) + "%");
+
+        if (v > 100 && root.extraBrightnessCommandTemplate.length > 0) {
+            const factor = (v / 100.0);
+            const cmd = root.extraBrightnessCommandTemplate.replace("${factor}", factor.toFixed(2));
+            Hyprland.dispatch("exec bash -lc " + JSON.stringify(cmd));
+        }
+        updateBrightnessIcon();
+        brightDebounceRead.restart();
+    }
+
+    Timer {
+        id: visibleBrightTick
+        interval: 500
+        running: root.visible
+        repeat: true
+        onTriggered: {
+            if (!brightnessSlider.pressed) brightnessReadProc.running = true;
+        }
+    }
+
+    Timer {
+        id: brightDebounceRead
+        interval: 220
+        repeat: false
+        onTriggered: {
+            if (!brightnessSlider.pressed) brightnessReadProc.running = true;
         }
     }
 
@@ -613,7 +749,6 @@ Rectangle {
     }
 
     // ====== RETE: Process e Timer ======
-    // Rileva interfaccia attiva + tipo + nome
     Process {
         id: netInfoProc
         running: false
@@ -654,19 +789,15 @@ Rectangle {
         }
     }
 
-    // IP v4 dell'interfaccia (comando aggiornato da _refreshIpCommand)
     Process {
         id: ipProc
         running: false
-        command: ["bash", "-lc", "true"] // placeholder, sostituito da _refreshIpCommand()
+        command: ["bash", "-lc", "true"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                netIp4 = (text || "").trim();
-            }
+            onStreamFinished: { netIp4 = (text || "").trim(); }
         }
     }
 
-    // Poll periodico per aggiornare info rete (cambio interfaccia, ecc.)
     Timer {
         id: netInfoTimer
         interval: 4000
@@ -676,21 +807,18 @@ Rectangle {
         onTriggered: netInfoProc.running = true
     }
 
-    // Calcolo velocità ↓/↑ da sysfs (parte/si ferma automaticamente in base a netIface)
     Timer {
         id: rxTxTimer
         interval: 1000
         running: netIface && netIface.length > 0
         repeat: true
-        onTriggered: {
-            rxTxProc.running = true;
-        }
+        onTriggered: { rxTxProc.running = true; }
     }
 
     Process {
         id: rxTxProc
         running: false
-        command: ["bash", "-lc", "IF=\"" + netIface + "\"; [ -n \"$IF\" ] && { cat /sys/class/net/$IF/statistics/rx_bytes; cat /sys/class/net/$IF/statistics/tx_bytes; } 2>/dev/null || echo -e '0\n0' "]
+        command: ["bash", "-lc", "IF=\"" + netIface + "\"; [ -n \"$IF\" ] && { cat /sys/class/net/$IF/statistics/rx_bytes; cat /sys/class/net/$IF/statistics/tx_bytes; } 2>/dev/null || echo -e '0\\n0' "]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = (text || "").trim().split(/\s+/);

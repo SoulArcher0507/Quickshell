@@ -12,9 +12,9 @@ Rectangle {
     property int margin: 16
 
     // ====== manopole larghezza ======
-    property real popupFrac: 0.85      // % dello schermo (0.55 = 55%)
-    property int  popupMinWidth: 1640   // min px
-    property int  popupMaxWidth: 1200  // max px
+    property real popupFrac: 0.30      // % dello schermo (0.55 = 55%)
+    property int  popupMinWidth: 400  // min px
+    property int  popupMaxWidth: 600  // max px
     property int  popupFixedWidth: 0   // se >0, usa questo valore fisso in px
 
     readonly property int popupWidth: {
@@ -188,21 +188,52 @@ Rectangle {
         spacing: 16
 
         // Pulsante DND
-        Rectangle {
-            id: dndButton
+        RowLayout {
+            id: dndRow
             Layout.fillWidth: true
             height: 30
-            radius: 6
-            color: root.doNotDisturb ? "#444444" : "#333333"
-            border.color: "#555555"
-            clip: true
+            spacing: 10
+
+            // Etichetta
             Text {
-                anchors.centerIn: parent
-                text: root.doNotDisturb ? "Disable Do Not Disturb" : "Enable Do Not Disturb"
-                color: "#ffffff"; font.pixelSize: 14; font.family: "Fira Sans Semibold"
+                text: "Do Not Disturb"
+                color: "#ff7f32"                     // arancione accent
+                font.pixelSize: 14
+                font.family: "Fira Sans Semibold"
+                Layout.alignment: Qt.AlignVCenter
             }
-            MouseArea { anchors.fill: parent; onClicked: root.doNotDisturb = !root.doNotDisturb }
+
+            // Spaziatore per spingere lo switch a destra
+            Item { Layout.fillWidth: true }
+
+            // Switch stile pillola
+            Rectangle {
+                id: dndSwitch
+                width: 46; height: 24; radius: 12
+                color: root.doNotDisturb ? "#ff7f32" : "#444444"   // acceso = accent, spento = grigio scuro
+                border.color: "#555555"
+                antialiasing: true
+                Layout.alignment: Qt.AlignVCenter
+
+                // knob
+                Rectangle {
+                    id: knob
+                    width: 20; height: 20; radius: 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: root.doNotDisturb ? parent.width - width - 2 : 2
+                    color: "#ffffff"
+                    antialiasing: true
+                    Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.doNotDisturb = !root.doNotDisturb
+                    cursorShape: Qt.PointingHandCursor
+                }
+            }
         }
+
 
         // ===================== MEDIA MANAGER =====================
         Rectangle {
@@ -285,46 +316,52 @@ Rectangle {
                         }
 
                         // Controlli sotto (prec / play-pausa / succ)
-                        Row {
+                        RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 10
 
                             Rectangle {
-                                width: 30; height: 30; radius: 15
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 40; height: 40; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: "«"; color: ok ? "#dddddd" : "#777777";
-                                       font.pixelSize: 13; font.family: "Fira Sans Semibold" }
+                                Text { anchors.centerIn: parent; text: ""; color: ok ? "#dddddd" : "#777777";
+                                    font.pixelSize: 16; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.previous && mediaCarousel.cp.previous() }
                             }
+
                             Rectangle {
-                                width: 34; height: 34; radius: 17
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 48; height: 48; radius: 17        // bottone centrale leggermente più grande
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
                                 Text {
                                     anchors.centerIn: parent
-                                    text: (mediaCarousel.cp && mediaCarousel.cp.isPlaying) ? "▮▮" : "▶"
+                                    text: (mediaCarousel.cp && mediaCarousel.cp.isPlaying) ? "" : ""
                                     color: ok ? "#dddddd" : "#777777"
-                                    font.pixelSize: 13
+                                    font.pixelSize: 25
                                     font.family: "Fira Sans Semibold"
                                 }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.togglePlaying && mediaCarousel.cp.togglePlaying() }
                             }
+
                             Rectangle {
-                                width: 30; height: 30; radius: 15
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 40; height: 40; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
                                 color: ok ? "#444444" : "#333333"
                                 border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: "»"; color: ok ? "#dddddd" : "#777777";
-                                       font.pixelSize: 13; font.family: "Fira Sans Semibold" }
+                                Text { anchors.centerIn: parent; text: ""; color: ok ? "#dddddd" : "#777777";
+                                    font.pixelSize: 16; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.next && mediaCarousel.cp.next() }
                             }
                         }
+
 
                         // Pallini pagina
                         Row {

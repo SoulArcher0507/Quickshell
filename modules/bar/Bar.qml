@@ -203,18 +203,25 @@ Variants {
                     anchors.fill: parent
                     Rectangle {
                         id: notificationPanel
-                        width: 300
-                        height: notificationContent.implicitHeight
+                        // --- CAMBIA QUI ---
+                        // width: 300
+                        // height: notificationContent.implicitHeight
+                        property int sideMargin: 16
+                        width:  Math.min(notificationContent.implicitWidth,  overlayWindow.width  - sideMargin*2)
+                        height: Math.min(notificationContent.implicitHeight, overlayWindow.height - sideMargin*2)
+                        // ------------------
+
                         radius: 10
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1
-                        anchors { top: parent.top; right: parent.right; rightMargin: 16 }
+                        anchors { top: parent.top; right: parent.right; topMargin: switcher.overlayTopOffset; rightMargin: 16 }
                         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: {} }
                         Notifications { id: notificationContent; anchors.fill: parent }
                     }
                 }
             }
+
 
             Component {
                 id: powerComp
@@ -528,7 +535,7 @@ Variants {
                     // Time on the far right
                     Rectangle{
                         id: timeButton
-                        width: 147 * panel.scaleFactor
+                        width: 143 * panel.scaleFactor
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor

@@ -1,29 +1,71 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
+import Quickshell                 // <-- aggiunto
 import Quickshell.Services.Notifications
 import Quickshell.Services.Mpris
-import Qt.labs.platform 1.1 as Labs   // <-- per StandardPaths
+import Qt.labs.platform 1.1 as Labs
 
 Rectangle {
     id: root
     property int margin: 16
-    // >> Larghezza forzata e stabile <<
-    readonly property int popupWidth: Math.floor(
-        root.window && root.window.screen && root.window.screen.geometry
-            ? Math.min(Math.max(root.window.screen.geometry.width * 0.38, 520), 720)
-            : 560
-    )
-    width: popupWidth
-    implicitWidth: popupWidth
-    height: implicitHeight
 
+    // ====== manopole larghezza ======
+    property real popupFrac: 0.85      // % dello schermo (0.55 = 55%)
+    property int  popupMinWidth: 1640   // min px
+    property int  popupMaxWidth: 1200  // max px
+    property int  popupFixedWidth: 0   // se >0, usa questo valore fisso in px
+
+    readonly property int popupWidth: {
+        const scr = (root.window && root.window.screen) ? root.window.screen : Screen.primary
+        const sw  = scr ? scr.geometry.width : 1280
+        const wByFrac = Math.min(Math.max(sw * popupFrac, popupMinWidth), popupMaxWidth)
+        Math.floor(popupFixedWidth > 0 ? popupFixedWidth : wByFrac)
+    }
+
+    // Applica al contenuto
+    implicitWidth: popupWidth
+    Layout.preferredWidth: popupWidth
+    Layout.minimumWidth: popupWidth   // opzionale, ma utile
+    Layout.maximumWidth: popupWidth   // opzionale
+    // Se il contenitore usasse Layouts, dai anche gli hints:
+
+    // Forza anche la finestra vero e proprio (PanelWindow/LayerShell)
+    function _applyWidth() {
+        // contenuto
+        root.width = popupWidth
+        root.implicitWidth = popupWidth
+
+        // finestra (Quickshell)
+        const w = QsWindow?.window || root.window
+        if (w) {
+            // alcuni window manager leggono solo "width"
+            w.width = popupWidth
+
+            // in certi casi servono anche gli hint
+            if ("minimumWidth" in w) w.minimumWidth = popupWidth
+            if ("maximumWidth" in w) w.maximumWidth = popupWidth
+            if ("preferredWidth" in w) w.preferredWidth = popupWidth
+            if ("contentWidth"  in w) w.contentWidth  = popupWidth
+        }
+    }
+
+    Component.onCompleted: _applyWidth()
+    onPopupWidthChanged:   _applyWidth()
+    Connections {
+        target: root.window ? root.window.screen : null
+        function onGeometryChanged() { root._applyWidth() }
+    }
+
+    height: implicitHeight
     color: "#222222"
     radius: 8
     border.color: "#555555"
     border.width: 1
     clip: true
     implicitHeight: content.implicitHeight + margin * 2
+
 
     // --- DO NOT DISTURB locale ---
     property bool doNotDisturb: false
@@ -313,52 +355,58 @@ Rectangle {
         }
         // =================== FINE MEDIA MANAGER =====================
 
-        // Barra "Clear all"
-        Rectangle {
-            id: clearBar
-            Layout.fillWidth: true
-            height: 36
+        // Pulsante "Clear all" (niente contenitore, allineato a destra)
+        Button {
+            id: clearAllBtn
+            Layout.alignment: Qt.AlignRight
             visible: server.trackedNotifications.values.length > 0
-            radius: 6
-            color: "#2e2e2e"
-            border.color: "#555555"
-            Button {
-                id: clearAllBtn
-                anchors.centerIn: parent
-                text: "Clear all"
-                onClicked: {
-                    while (server.trackedNotifications.values.length > 0)
-                        server.trackedNotifications.values[0].dismiss()
-                }
+            text: "Clear all"
+            onClicked: {
+                while (server.trackedNotifications.values.length > 0)
+                    server.trackedNotifications.values[0].dismiss()
             }
         }
+
 
         // Lista notifiche
         ListView {
             id: notificationList
             Layout.fillWidth: true
+
+            // Altezza come prima
             Layout.preferredHeight: {
                 let header = dndButton.height + content.spacing
                 header += mediaCarousel.implicitHeight + content.spacing
-                if (clearBar.visible) header += clearBar.height + content.spacing
+                if (clearAllBtn.visible) header += clearAllBtn.implicitHeight + content.spacing
                 const contentMax = Math.max(120, root.maxPopupHeight - root.margin * 2)
                 const listMax = Math.max(80, contentMax - header)
                 Math.min(notificationList.contentHeight, listMax)
             }
+
+
             spacing: 8
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             interactive: contentHeight > height
 
+            // ---- RISERVA SPAZIO alla ScrollBar per evitare sovrapposizioni ----
+            // Larghezza effettiva della scrollbar quando visibile
+            property int _vbarWidth: (vbar.visible ? Math.max(8, vbar.implicitWidth) + 4 : 0)
+            // Margine destro della ListView = larghezza scrollbar
+            rightMargin: _vbarWidth
+
             ScrollBar.vertical: ScrollBar {
+                id: vbar
                 policy: notificationList.contentHeight > notificationList.height
                         ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
             }
+            // -------------------------------------------------------------------
 
             model: server.trackedNotifications
 
             delegate: Rectangle {
-                width: notificationList.width
+                // Usa la larghezza della lista al netto della scrollbar
+                width: notificationList.width - notificationList._vbarWidth
                 radius: 6
                 color: "#333333"
                 border.color: "#555555"
@@ -402,12 +450,18 @@ Rectangle {
 
                     Text {
                         id: bodyText
+                        // <-- Aggancio alla larghezza effettiva della card
+                        width: parent.width
                         text: modelData.body
                         color: "#dddddd"
                         font.pixelSize: 12
                         textFormat: Text.PlainText
-                        wrapMode: Text.Wrap
+                        // Avvolge anche parole/lunghi URL quando serve
+                        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                        // (opz.) elide per casi estremi a fine riga singola
+                        elide: Text.ElideRight
                     }
+
 
                     Flow {
                         id: actionsFlow
@@ -438,6 +492,7 @@ Rectangle {
                 }
             }
 
+            // Placeholder quando non ci sono notifiche
             Rectangle {
                 anchors.fill: parent
                 color: "transparent"
@@ -450,5 +505,6 @@ Rectangle {
                 }
             }
         }
+
     }
 }

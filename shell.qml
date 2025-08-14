@@ -6,6 +6,9 @@ import Quickshell.Services.SystemTray
 import "modules/bar/"
 import "modules/notifications" as Notifications
 import Quickshell.Services.Notifications as NS
+// in cima al file, insieme agli altri import
+import "modules/overlays"
+
 
 ShellRoot {
     id: root
@@ -38,6 +41,20 @@ ShellRoot {
         // IMPORTANTISSIMO: marca tutte le notifiche come "tracked"
         onNotification: function(n) { n.tracked = true }
     }
+
+    // OSD volume per ogni schermo: visibile solo su monitor attivo
+    Variants {
+        model: Quickshell.screens
+
+        delegate: Component {
+            // ogni item della Variants ha la property 'modelData' con lo screen
+            VolumeOverlay {
+                // IMPORTANTISSIMO: passiamo lo screen corretto alla finestra
+                screen: modelData
+            }
+        }
+    }
+
 
 }
 

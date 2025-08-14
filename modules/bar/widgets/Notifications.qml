@@ -410,16 +410,17 @@ Rectangle {
             id: notificationList
             Layout.fillWidth: true
 
-            // Altezza come prima
+            // Altezza: usa dndRow (non dndButton) e metti fallback robusti
             Layout.preferredHeight: {
-                let header = dndButton.height + content.spacing
+                const dndH = dndRow ? Math.max(dndRow.height, dndRow.implicitHeight) : 30
+                let header = dndH + content.spacing
                 header += mediaCarousel.implicitHeight + content.spacing
                 if (clearAllBtn.visible) header += clearAllBtn.implicitHeight + content.spacing
-                const contentMax = Math.max(120, root.maxPopupHeight - root.margin * 2)
-                const listMax = Math.max(80, contentMax - header)
-                Math.min(notificationList.contentHeight, listMax)
-            }
 
+                const contentMax = Math.max(120, root.maxPopupHeight - root.margin * 2)
+                const listMax    = Math.max(80, contentMax - header)
+                return Math.min(notificationList.contentHeight, listMax)
+            }
 
             spacing: 8
             clip: true

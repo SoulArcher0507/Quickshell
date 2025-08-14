@@ -5,22 +5,72 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications as NS
+import Quickshell.Hyprland // ★ per monitor attivo
 
 // Finestra layer in alto a destra che mostra i "toast"
 PanelWindow {
     id: toaster
     color: "transparent"
 
-    // *** Usa il server condiviso ***
     required property var server
 
     anchors { top: true; right: true }
     margins { top: 16; right: 16 }
 
+    // ★ segui il monitor attualmente focalizzato in Hyprland
+    //    QsWindow.screen accetta un ShellScreen; mappiamo dal monitor Hyprland allo Screen
+    property var activeScreen: {
+        const fm = Hyprland.focusedMonitor
+        const screens = Quickshell.screens
+        for (let i = 0; i < screens.length; ++i) {
+            const s = screens[i]
+            const m = Hyprland.monitorFor(s)
+            if (fm && m && m.id === fm.id) return s
+        }
+        return screens.length ? screens[0] : null
+    }
+    screen: activeScreen // ← sposta la finestra sullo schermo attivo
+
+    // === lista locale di toast effimeri ===
+    property var toasts: []
+
     // Mostra la finestra solo se ci sono toast
-    visible: toastRepeater.count > 0
+    visible: toasts.length > 0
     implicitWidth: 420
     implicitHeight: column.implicitHeight
+
+    // Assicurati che stia sopra tutto e non rubi zona
+    Component.onCompleted: {
+        aboveWindows = true
+        exclusiveZone = 0
+        // ★ pubblicizza le capacità: più app mostreranno testo/immagini/azioni
+        if (server) {
+            server.bodySupported = true
+            server.imageSupported = true
+            server.actionsSupported = true
+            server.actionIconsSupported = true
+            server.bodyMarkupSupported = true
+            server.bodyImagesSupported = true
+            server.bodyHyperlinksSupported = true
+        }
+    }
+
+    // ★ Ricevi OGNI notifica e marca come tracked (altrimenti scompare subito)
+    Connections {
+        target: server
+        function onNotification(notification) {
+            if (toaster.toasts.indexOf(notification) === -1) {
+                notification.tracked = true   // ★ fondamentale
+                toaster.toasts.push(notification)
+            }
+        }
+    }
+
+    // Helper per rimuovere una notifica dalla lista
+    function removeToast(n) {
+        const i = toasts.indexOf(n)
+        if (i !== -1) toasts.splice(i, 1)
+    }
 
     // Colonna di toast
     Column {
@@ -30,8 +80,7 @@ PanelWindow {
 
         Repeater {
             id: toastRepeater
-            // ObjectModel/UntypedObjectModel → usa la vista lista "values"
-            model: server.trackedNotifications.values
+            model: toasts
             delegate: Toast { n: modelData; width: 380 }
         }
     }
@@ -191,13 +240,19 @@ PanelWindow {
             }
         }
 
-        // Uscita quando il server la chiude
+        // Uscita quando il server la chiude + rimozione dalla lista locale
         Connections {
             target: toast.n ? toast.n : null
             function onClosed(reason) {
                 toast.opacity = 0.0;
                 toast.y = -6;
+                removeLater.start();
             }
+        }
+        Timer {
+            id: removeLater
+            interval: 160; repeat: false
+            onTriggered: if (toast.n) toaster.removeToast(toast.n)
         }
     }
 }

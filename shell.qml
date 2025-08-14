@@ -42,19 +42,8 @@ ShellRoot {
         onNotification: function(n) { n.tracked = true }
     }
 
-    // OSD volume per ogni schermo: visibile solo su monitor attivo
-    Variants {
-        model: Quickshell.screens
-
-        delegate: Component {
-            // ogni item della Variants ha la property 'modelData' con lo screen
-            VolumeOverlay {
-                // IMPORTANTISSIMO: passiamo lo screen corretto alla finestra
-                screen: modelData
-            }
-        }
-    }
-
+    // OSD volume: singola istanza. Il compositor sceglie il monitor attivo.
+    VolumeOverlay { }
 
 }
 

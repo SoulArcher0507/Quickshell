@@ -8,22 +8,23 @@ import Quickshell.Services.Notifications
 import "widgets/"
 import org.kde.layershell 1.0
 import Quickshell.Io
-import "modules/theme" as ThemePkg
+import "../theme" as ThemePkg
+
 
 
 // Create a proper panel window
 Variants {
     id: bar
     model: Quickshell.screens;
+    
+    readonly property color moduleColor:       ThemePkg.Theme.surface(0.10)
+    readonly property color moduleBorderColor: ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property color moduleFontColor:   ThemePkg.Theme.accent
 
-    readonly property color moduleColor: "#333333"
-    readonly property color moduleBorderColor: "#555555"
-    readonly property color moduleFontColor: "#cccccc"
-
-    readonly property color workspaceActiveColor: "#4a9eff"
+    readonly property color workspaceActiveColor:        ThemePkg.Theme.c7
     readonly property color workspaceInactiveColor: moduleColor
-    readonly property color workspaceActiveFontColor: "#ffffff"
-    readonly property color workspaceInactiveFontColor: moduleFontColor
+    readonly property color workspaceActiveFontColor:    ThemePkg.Theme.accent
+    readonly property color workspaceInactiveFontColor:  moduleFontColor
 
     delegate: Component {
         Item {
@@ -80,15 +81,15 @@ Variants {
                         interval: switcher.autolockStatusPollMs
                         running: true
                         repeat: true
-                        onTriggered: autolockStatusProc.start()
+                        onTriggered: autolockStatusProc.exec(["bash","-lc", switcher.autolockStatusCmd])
                     }
                     Timer {
                         id: autolockRecheck
                         interval: 350
                         repeat: false
-                        onTriggered: autolockStatusProc.start()
+                        onTriggered: autolockStatusProc.exec(["bash","-lc", switcher.autolockStatusCmd])
                     }
-                    Component.onCompleted: autolockStatusProc.start()
+                    Component.onCompleted: autolockStatusProc.exec(["bash","-lc", switcher.autolockStatusCmd])
 
                     Timer {
                         id: finalizeClose
@@ -437,7 +438,7 @@ Variants {
                                     width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
-                                    color: hovered ? "#3a3a3a" : moduleColor
+                                    color: hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08) : moduleColor
                                     border.color: moduleBorderColor
                                     border.width: 1
                                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -470,8 +471,10 @@ Variants {
                                     property bool hovered: false
                                     // RED when autolock is DISABLED
                                     color: switcher.autolockDisabled
-                                        ? (hovered ? "#b64a4a" : "#a63a3a")
-                                        : (hovered ? "#3a3a3a" : moduleColor)
+                                        ? (hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.danger, 0.85)
+                                        : ThemePkg.Theme.withAlpha(ThemePkg.Theme.danger, 0.75))
+                                    : (hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                        : moduleColor)
                                     border.color: moduleBorderColor
                                     border.width: 1
                                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -480,7 +483,8 @@ Variants {
                                     Text {
                                         anchors.centerIn: parent
                                         text: switcher.autolockDisabled ? "" : ""
-                                        color: moduleFontColor
+                                        color: switcher.autolockDisabled ? ThemePkg.Theme.c15 : moduleFontColor
+
                                         font.pixelSize: 16
                                         font.family: "CaskaydiaMono Nerd Font"
                                     }
@@ -555,7 +559,7 @@ Variants {
                 margins { top: 0; left: 0; right: 0 }
 
                 Rectangle {
-                    id: bar
+                    id: barBg
                     anchors.fill: parent
                     color: "transparent"
                     radius: 0
@@ -693,7 +697,8 @@ Variants {
                         }
 
                         // Nota: nmcliProcess è definito altrove nel tuo progetto
-                        Timer { interval: 10000; running: true; repeat: true; onTriggered: nmcliProcess.start() }
+                        Timer { interval: 10000; running: true; repeat: true; onTriggered: nmcliProcess.exec(nmcliProcess.command) }
+
 
                         Connections {
                             target: Pipewire.defaultAudioSink
@@ -701,7 +706,7 @@ Variants {
                             function onMuteChanged() { rightsidebarButton.updateVolumeIcon() }
                         }
 
-                        Component.onCompleted: { nmcliProcess.start(); updateVolumeIcon() }
+                        Component.onCompleted: { nmcliProcess.exec(nmcliProcess.command); updateVolumeIcon() }
                     }
 
                     // Power
@@ -818,3 +823,4 @@ Variants {
         }
     }
 }
+

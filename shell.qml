@@ -6,26 +6,12 @@ import Quickshell.Services.SystemTray
 import "modules/bar/"
 import "modules/notifications" as Notifications
 import Quickshell.Services.Notifications as NS
-// in cima al file, insieme agli altri import
 import "modules/overlays"
-
 
 ShellRoot {
     id: root
 
-    Loader {
-        active: true
-        sourceComponent: Bar {
-        }
-        Notifications.NotificationPopup {
-            id: notifPopup
-            server: notifServer
-            screen: Quickshell.screens[0]   // oppure Quickshell.primaryScreen, o lo screen della tua Bar
-        }
-
-
-    }
-
+    // --- Notification server UNICO ---
     NS.NotificationServer {
         id: notifServer
         bodySupported: true
@@ -38,12 +24,36 @@ ShellRoot {
         inlineReplySupported: true
         keepOnReload: true
 
-        // IMPORTANTISSIMO: marca tutte le notifiche come "tracked"
-        onNotification: function(n) { n.tracked = true }
+        // ⚠️ RIMOSSO l'handler inline "onNotification: function(n) { ... }"
+        // perché può non eseguire correttamente / generare warning.
     }
 
-    // OSD volume: singola istanza. Il compositor sceglie il monitor attivo.
+    // --- Marca tracked (se possibile) e fai anche da "canary" che gli eventi arrivano ---
+    Connections {
+        target: notifServer
+        ignoreUnknownSignals: true
+        function onNotification(n) {
+            try { n.tracked = true } catch (e) {}
+            // console.log("QS notif (onNotification):", n && n.summary)
+        }
+        function onNotificationAdded(n) {
+            try { n.tracked = true } catch (e) {}
+            // console.log("QS notif (onNotificationAdded):", n && n.summary)
+        }
+    }
+
+    // --- Bar caricata via Loader (come avevi) ---
+    Loader {
+        active: true
+        sourceComponent: Bar { }
+    }
+
+    // --- Popup notifiche: istanza diretta, come l'OSD del volume ---
+    Notifications.NotificationPopup {
+        id: notifPopup
+        server: notifServer
+    }
+
+    // --- OSD volume: singola istanza. Il compositor sceglie il monitor attivo. ---
     VolumeOverlay { }
-
 }
-

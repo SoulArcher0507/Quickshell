@@ -76,6 +76,34 @@ QtObject {
         return Qt.rgba(rgb.r || 0, rgb.g || 0, rgb.b || 0, alpha);
     }
 
+    // --- util per mescolare colori e creare superfici leggibili ---
+    function _toRgb(x) {
+        // accetta "#RRGGBB", "#AARRGGBB", "#RGB" o Qt.rgba(...)
+        if (typeof x === "string") {
+            let s = x.trim(); if (s[0] === "#") s = s.slice(1);
+            if (s.length === 3) s = s.split("").map(ch => ch + ch).join("");
+            if (s.length === 8) s = s.slice(2);
+            return { r: parseInt(s.slice(0,2),16)/255,
+                    g: parseInt(s.slice(2,4),16)/255,
+                    b: parseInt(s.slice(4,6),16)/255 };
+        } else if (x && x.r !== undefined) {
+            return { r: x.r, g: x.g, b: x.b };
+        }
+        return { r: 0, g: 0, b: 0 };
+    }
+
+    function mix(a, b, t) {
+        const A = _toRgb(a), B = _toRgb(b);
+        const k = Math.max(0, Math.min(1, t));
+        return Qt.rgba(A.r*(1-k)+B.r*k, A.g*(1-k)+B.g*k, A.b*(1-k)+B.b*k, 1.0);
+    }
+
+    // Surface “alzata”: background mescolato col foreground (come un lighten soft)
+    function surface(level) {            // level consigliati: 0.06, 0.10, 0.14
+        return mix(background, foreground, level);
+    }
+
+
     function _pick(deflt /*, ...candidates */) {
         for (let i=1; i<arguments.length; ++i) {
             const v = arguments[i]

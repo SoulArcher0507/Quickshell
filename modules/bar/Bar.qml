@@ -5,9 +5,10 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 import Quickshell.Services.Notifications
-import Qt.labs.platform 1.1
 import "widgets/"
 import org.kde.layershell 1.0
+import Quickshell.Io
+
 
 // Create a proper panel window
 Variants {
@@ -60,6 +61,33 @@ Variants {
 
                     property int    pendingIndex: -1
                     property string pendingShownOverlay: ""
+
+                    // ===== Autolock/Hypridle state (persistente) =====
+                    property bool autolockDisabled: false
+                    property string autolockStatusCmd: "pgrep -x hypridle" // 0=running(ON)  !=0=OFF
+                    property int autolockStatusPollMs: 3000
+
+                    Process {
+                        id: autolockStatusProc
+                        command: ["bash", "-lc", switcher.autolockStatusCmd]
+                        onExited: function(exitCode, exitStatus) {
+                            switcher.autolockDisabled = (exitCode !== 0);
+                        }
+                    }
+                    Timer {
+                        id: autolockPoll
+                        interval: switcher.autolockStatusPollMs
+                        running: true
+                        repeat: true
+                        onTriggered: autolockStatusProc.start()
+                    }
+                    Timer {
+                        id: autolockRecheck
+                        interval: 350
+                        repeat: false
+                        onTriggered: autolockStatusProc.start()
+                    }
+                    Component.onCompleted: autolockStatusProc.start()
 
                     Timer {
                         id: finalizeClose
@@ -324,23 +352,56 @@ Variants {
             }
 
             // =======================
-            // OVERLAY: ARCH (FIXED)
+            // OVERLAY: ARCH (EN tooltips + autolock state via Quickshell.Io.Process)
             // =======================
             Component {
                 id: archComp
                 Item {
                     anchors.fill: parent
 
-                    // === Inserisci QUI i tuoi script ===
+                    // === Your scripts here ===
                     property string changeWallpaperScript: "$HOME/.config/swaybg/wallpaper.sh"
                     property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
                     property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
 
-                    function runScript(path) {
+                    // Check real Hypridle status: exit 0 => running (autolock ON), non-zero => not running (autolock OFF)
+                    property string autolockStatusCmd: "pgrep -x hypridle"
+                    property int    autolockStatusPollMs: 3000
+
+                    // true => autolock disabled (Hypridle OFF)
+                    property bool autolockDisabled: false
+
+                    function runScript(path, args) {
                         if (!path || path.trim() === "") return;
-                        // virgolette per gestire spazi nel path
-                        Hyprland.dispatch('exec "' + path + '"');
+                        // quota SOLO il path, poi aggiunge gli argomenti
+                        var cmd = '"' + path + '"' + (args && args.length ? " " + args : "");
+                        Hyprland.dispatch("exec " + cmd);
                     }
+
+
+                    // Quickshell.Io.Process: usa onExited per leggere exitCode
+                    Process {
+                        id: autolockStatusProc
+                        command: ["bash", "-lc", autolockStatusCmd]
+                        onExited: function (exitCode, exitStatus) {
+                            autolockDisabled = (exitCode !== 0);
+                        }
+                    }
+                    Timer {
+                        id: autolockPoll
+                        interval: autolockStatusPollMs
+                        running: true
+                        repeat: true
+                        onTriggered: autolockStatusProc.start()
+                    }
+                    // Recheck shortly after toggle
+                    Timer {
+                        id: autolockRecheck
+                        interval: 350
+                        repeat: false
+                        onTriggered: autolockStatusProc.start()
+                    }
+                    Component.onCompleted: autolockStatusProc.start()
 
                     Rectangle {
                         id: archPanel
@@ -348,15 +409,13 @@ Variants {
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1
-
                         // stessa posizione di Connessioni/Notifiche
-                        anchors { top: parent.top; right: parent.right; topMargin: switcher.overlayTopOffset; rightMargin: 16 }
+                        anchors { top: parent.top; right: parent.right; rightMargin: 16 }
 
-                        // Dimensioni guidate dal contenuto (niente anchors.fill sul contenuto!)
+                        // dimensioni guidate dal contenuto (niente anchors.fill sul contenuto)
                         width: Math.max(220, contentBox.implicitWidth + 24)
                         height: contentBox.implicitHeight + 24
 
-                        // --- Contenuto compatto ---
                         Column {
                             id: contentBox
                             anchors { top: parent.top; left: parent.left; topMargin: 12; leftMargin: 12 }
@@ -369,21 +428,22 @@ Variants {
                                 font.family: "Fira Sans Semibold"
                             }
 
-                            // Bottoniera in stile "pill" (come in barra)
                             Row {
-                                id: btnRow
                                 spacing: 8
 
-                                // --- Cambia wallpaper ---
+                                // Change wallpaper
                                 Rectangle {
                                     width: 36; height: 30
                                     radius: 10
-                                    color: moduleColor
+                                    property bool hovered: false
+                                    color: hovered ? "#3a3a3a" : moduleColor
                                     border.color: moduleBorderColor
                                     border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "" // icona immagine
+                                        text: ""
                                         color: moduleFontColor
                                         font.pixelSize: 16
                                         font.family: "CaskaydiaMono Nerd Font"
@@ -393,25 +453,32 @@ Variants {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onEntered: parent.color = "#3a3a3a"
-                                        onExited:  parent.color = moduleColor
+                                        onEntered: parent.hovered = true
+                                        onExited:  parent.hovered = false
                                         onClicked: runScript(changeWallpaperScript)
                                     }
                                     ToolTip.visible: maWall.containsMouse
                                     ToolTip.delay: 250
-                                    ToolTip.text: "Cambia wallpaper"
+                                    ToolTip.text: "Change wallpaper"
                                 }
 
-                                // --- Toggle autolock ---
+                                // --- Toggle autolock / Hypridle ---
                                 Rectangle {
                                     width: 36; height: 30
                                     radius: 10
-                                    color: moduleColor
+                                    property bool hovered: false
+                                    // RED when autolock is DISABLED
+                                    color: switcher.autolockDisabled
+                                        ? (hovered ? "#b64a4a" : "#a63a3a")
+                                        : (hovered ? "#3a3a3a" : moduleColor)
                                     border.color: moduleBorderColor
                                     border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    // closed lock when DISABLED
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "" // lucchetto aperto (toggle)
+                                        text: switcher.autolockDisabled ? "" : ""
                                         color: moduleFontColor
                                         font.pixelSize: 16
                                         font.family: "CaskaydiaMono Nerd Font"
@@ -421,25 +488,35 @@ Variants {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onEntered: parent.color = "#3a3a3a"
-                                        onExited:  parent.color = moduleColor
-                                        onClicked: runScript(toggleAutolockScript)
+                                        onEntered: parent.hovered = true
+                                        onExited:  parent.hovered = false
+                                        onClicked: {
+                                            runScript(toggleAutolockScript, "toggle")  // usa il tuo script con argomento
+                                            switcher.autolockDisabled = !switcher.autolockDisabled  // feedback immediato (se hai già spostato lo stato in switcher)
+                                            autolockRecheck.start()  // riallinea con lo stato reale (pgrep)
+                                        }
                                     }
                                     ToolTip.visible: maLock.containsMouse
                                     ToolTip.delay: 250
-                                    ToolTip.text: "Disattiva/attiva autolock"
+                                    ToolTip.text: switcher.autolockDisabled
+                                        ? "Autolock is OFF (click to enable)"
+                                        : "Autolock is ON (click to disable)"
                                 }
 
-                                // --- Clipboard manager ---
+
+                                // Open clipboard manager
                                 Rectangle {
                                     width: 36; height: 30
                                     radius: 10
-                                    color: moduleColor
+                                    property bool hovered: false
+                                    color: hovered ? "#3a3a3a" : moduleColor
                                     border.color: moduleBorderColor
                                     border.width: 1
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "" // appunti
+                                        text: ""
                                         color: moduleFontColor
                                         font.pixelSize: 16
                                         font.family: "CaskaydiaMono Nerd Font"
@@ -449,20 +526,19 @@ Variants {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onEntered: parent.color = "#3a3a3a"
-                                        onExited:  parent.color = moduleColor
+                                        onEntered: parent.hovered = true
+                                        onExited:  parent.hovered = false
                                         onClicked: runScript(openClipboardScript)
                                     }
                                     ToolTip.visible: maClip.containsMouse
                                     ToolTip.delay: 250
-                                    ToolTip.text: "Apri clipboard manager"
+                                    ToolTip.text: "Open clipboard manager"
                                 }
                             }
                         }
                     }
                 }
             }
-
 
             // ----------------
             // Pannello principale

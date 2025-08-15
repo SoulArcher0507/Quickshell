@@ -532,10 +532,14 @@ Variants {
                         }
                     }
 
-                    // Time on the far right
+                    // Time on the far right (auto-width based on content)
                     Rectangle{
                         id: timeButton
-                        width: 143 * panel.scaleFactor
+                        // removed fixed width; make it follow text size + padding
+                        property real hpad: 16 * panel.scaleFactor
+                        implicitWidth: timeDisplay.implicitWidth + hpad * 2
+                        width: implicitWidth
+
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -545,7 +549,11 @@ Variants {
 
                         Text {
                             id: timeDisplay
-                            anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 16 * panel.scaleFactor }
+                            anchors {
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                                rightMargin: timeButton.hpad   // keep symmetric padding
+                            }
                             property string currentTime: ""
                             text: currentTime
                             color: moduleFontColor

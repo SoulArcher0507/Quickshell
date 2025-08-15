@@ -7,15 +7,25 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Services.UPower
 import Quickshell.Bluetooth
+import "../../theme" as ThemePkg
 
 Rectangle {
     id: root
     property int margin: 16
     anchors.fill: parent
-    color: "#222222"
-    radius: 8
-    border.color: "#555555"
-    border.width: 1
+
+    // === Theme mapping ===
+    readonly property color panelBg:       ThemePkg.Theme.surface(0.10)
+    readonly property color panelBorder:   ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property color primary:       ThemePkg.Theme.accent
+    readonly property color textSecondary: ThemePkg.Theme.foreground
+
+    // il contenitore esterno (connectionPanel) gestisce sfondo/bordo
+    color: "transparent"
+    radius: 0
+    border.color: panelBorder
+    border.width: 0
+
     implicitHeight: content.implicitHeight + margin * 2
 
     // Guard per sync interni
@@ -163,7 +173,7 @@ Rectangle {
             Text {
                 id: uptimeText
                 text: (uptimeString.length > 0) ? ("Uptime: " + uptimeString) : "Uptime: …"
-                color: "#ffffff"
+                color: primary
                 font.pixelSize: 14
                 font.family: "Fira Sans Semibold"
             }
@@ -182,13 +192,15 @@ Rectangle {
                 Layout.preferredHeight: 24
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                 radius: 12
-                color: (netType === "down" || netType === "unknown") ? "#333333" : "#3a6fb3"
+                color: (netType === "down" || netType === "unknown")
+                         ? ThemePkg.Theme.surface(0.06)
+                         : primary
 
                 Text {
                     id: netIcon
                     anchors.centerIn: parent
                     text: _pickIconForNet()
-                    color: "#ffffff"
+                    color: ThemePkg.Theme.c15
                     font.pixelSize: 16
                     font.family: "Fira Sans Semibold"
                     renderType: Text.NativeRendering
@@ -230,12 +242,14 @@ Rectangle {
                 Layout.preferredHeight: 24
                 Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
                 radius: 12
-                color: (Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled) ? "#3a6fb3" : "#333333"
+                color: (Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled)
+                         ? primary
+                         : ThemePkg.Theme.surface(0.06)
 
                 Text {
                     anchors.centerIn: parent
                     text: "\uf293"
-                    color: "#ffffff"
+                    color: ThemePkg.Theme.c15
                     font.pixelSize: 14
                     font.family: "CaskaydiaMono Nerd Font"
                 }
@@ -281,9 +295,9 @@ Rectangle {
                 border.width: 0
                 antialiasing: true
 
-                property color baseFill:   "#333333"
-                property color iconColor:  "#ffffff"
-                property color accent:     "#4a9eff"
+                property color baseFill:   ThemePkg.Theme.surface(0.06)
+                property color iconColor:  ThemePkg.Theme.c15
+                property color accent:     primary
                 property int  radiusPx:    12
 
                 property int segmentCount: 3
@@ -371,11 +385,11 @@ Rectangle {
                 Layout.preferredHeight: 24
                 Layout.alignment: Qt.AlignVCenter
                 radius: 12
-                color: "#333333"
+                color: panelBg
                 Text {
                     id: volumeIcon
                     text: "\uf027"
-                    color: "#ffffff"
+                    color: primary
                     font.pixelSize: 16
                     font.family: "CaskaydiaMono Nerd Font"
                     anchors.centerIn: parent
@@ -431,8 +445,8 @@ Rectangle {
                     width: volumeSlider.availableWidth
                     height: 8
                     radius: 4
-                    color: "#333333"
-                    border.color: "#555555"
+                    color: ThemePkg.Theme.surface(0.06)
+                    border.color: panelBorder
                 }
 
                 handle: Rectangle {
@@ -441,8 +455,8 @@ Rectangle {
                     width: 16
                     height: 16
                     radius: 8
-                    color: "#ffffff"
-                    border.color: "#888888"
+                    color: ThemePkg.Theme.c15
+                    border.color: panelBorder
                 }
 
                 WheelHandler {
@@ -470,11 +484,11 @@ Rectangle {
                 Layout.preferredHeight: 24
                 Layout.alignment: Qt.AlignVCenter
                 radius: 12
-                color: "#333333"
+                color: panelBg
                 Text {
                     id: brightnessIcon
                     text: "\uf185"
-                    color: "#ffffff"
+                    color: primary
                     font.pixelSize: 16
                     font.family: "CaskaydiaMono Nerd Font"
                     anchors.centerIn: parent
@@ -521,8 +535,8 @@ Rectangle {
                     width: brightnessSlider.availableWidth
                     height: 8
                     radius: 4
-                    color: "#333333"
-                    border.color: "#555555"
+                    color: ThemePkg.Theme.surface(0.06)
+                    border.color: panelBorder
                 }
 
                 handle: Rectangle {
@@ -531,8 +545,8 @@ Rectangle {
                     width: 16
                     height: 16
                     radius: 8
-                    color: "#ffffff"
-                    border.color: "#888888"
+                    color: ThemePkg.Theme.c15
+                    border.color: panelBorder
                 }
 
                 WheelHandler {

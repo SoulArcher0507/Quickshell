@@ -2,10 +2,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import Quickshell                 // <-- aggiunto
+import QtQuick.Shapes
+import Quickshell
 import Quickshell.Services.Notifications
 import Quickshell.Services.Mpris
 import Qt.labs.platform 1.1 as Labs
+import "../../theme" as ThemePkg
 
 Rectangle {
     id: root
@@ -13,8 +15,8 @@ Rectangle {
 
     // ====== manopole larghezza ======
     property real popupFrac: 0.30      // % dello schermo (0.55 = 55%)
-    property int  popupMinWidth: 400  // min px
-    property int  popupMaxWidth: 600  // max px
+    property int  popupMinWidth: 400   // min px
+    property int  popupMaxWidth: 600   // max px
     property int  popupFixedWidth: 0   // se >0, usa questo valore fisso in px
 
     readonly property int popupWidth: {
@@ -24,26 +26,14 @@ Rectangle {
         Math.floor(popupFixedWidth > 0 ? popupFixedWidth : wByFrac)
     }
 
-    // Applica al contenuto
-    implicitWidth: popupWidth
-    Layout.preferredWidth: popupWidth
-    Layout.minimumWidth: popupWidth   // opzionale, ma utile
-    Layout.maximumWidth: popupWidth   // opzionale
-    // Se il contenitore usasse Layouts, dai anche gli hints:
-
-    // Forza anche la finestra vero e proprio (PanelWindow/LayerShell)
+    // Forza la larghezza anche sulla finestra (PanelWindow/LayerShell)
     function _applyWidth() {
-        // contenuto
         root.width = popupWidth
         root.implicitWidth = popupWidth
 
-        // finestra (Quickshell)
         const w = QsWindow?.window || root.window
         if (w) {
-            // alcuni window manager leggono solo "width"
             w.width = popupWidth
-
-            // in certi casi servono anche gli hint
             if ("minimumWidth" in w) w.minimumWidth = popupWidth
             if ("maximumWidth" in w) w.maximumWidth = popupWidth
             if ("preferredWidth" in w) w.preferredWidth = popupWidth
@@ -58,14 +48,27 @@ Rectangle {
         function onGeometryChanged() { root._applyWidth() }
     }
 
-    height: implicitHeight
-    color: "#222222"
-    radius: 8
-    border.color: "#555555"
-    border.width: 1
-    clip: true
-    implicitHeight: content.implicitHeight + margin * 2
+    // ===== THEME mapping =====
+    readonly property color panelBg:       ThemePkg.Theme.surface(0.10)
+    readonly property color cardBg:        ThemePkg.Theme.surface(0.08)
+    readonly property color panelBorder:   ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35)
+    readonly property color primary:       ThemePkg.Theme.accent
+    readonly property color textPrimary:   ThemePkg.Theme.foreground
+    readonly property color textMuted:     ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.85)
 
+    // Il wrapper esterno (notificationPanel in Bar) ha già sfondo/bordo
+    color: "transparent"
+    radius: 0
+    border.color: panelBorder
+    border.width: 0
+    clip: true
+
+    implicitWidth: popupWidth
+    Layout.preferredWidth: popupWidth
+    Layout.minimumWidth: popupWidth
+    Layout.maximumWidth: popupWidth
+    height: implicitHeight
+    implicitHeight: content.implicitHeight + margin * 2
 
     // --- DO NOT DISTURB locale ---
     property bool doNotDisturb: false
@@ -87,11 +90,11 @@ Rectangle {
         onNotification: (n) => { if (!root.doNotDisturb) n.tracked = true }
     }
 
-    // ===== Cache icone (evita I/O sincrono) =====
+    // ===== Cache icone =====
     property var _iconCache: ({})
     property var _artCache:  ({})
 
-    // --- Helpers originali (rimangono per fallback) ---
+    // (Fallback non usati: li lascio in caso servano, ma NON vengono chiamati)
     function _fileExists(urlOrPath) {
         var url = urlOrPath.startsWith("file:") ? urlOrPath : "file://" + urlOrPath
         try { var xhr = new XMLHttpRequest(); xhr.open("GET", url, false); xhr.send()
@@ -194,34 +197,31 @@ Rectangle {
             height: 30
             spacing: 10
 
-            // Etichetta
             Text {
                 text: "Do Not Disturb"
-                color: "#ff7f32"                     // arancione accent
+                color: primary
                 font.pixelSize: 14
                 font.family: "Fira Sans Semibold"
                 Layout.alignment: Qt.AlignVCenter
             }
 
-            // Spaziatore per spingere lo switch a destra
             Item { Layout.fillWidth: true }
 
             // Switch stile pillola
             Rectangle {
                 id: dndSwitch
                 width: 46; height: 24; radius: 12
-                color: root.doNotDisturb ? "#ff7f32" : "#444444"   // acceso = accent, spento = grigio scuro
-                border.color: "#555555"
+                color: root.doNotDisturb ? primary : ThemePkg.Theme.surface(0.08)
+                border.color: panelBorder
                 antialiasing: true
                 Layout.alignment: Qt.AlignVCenter
 
-                // knob
                 Rectangle {
                     id: knob
                     width: 20; height: 20; radius: 10
                     anchors.verticalCenter: parent.verticalCenter
                     x: root.doNotDisturb ? parent.width - width - 2 : 2
-                    color: "#ffffff"
+                    color: ThemePkg.Theme.c15
                     antialiasing: true
                     Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                 }
@@ -234,14 +234,13 @@ Rectangle {
             }
         }
 
-
         // ===================== MEDIA MANAGER =====================
         Rectangle {
             id: mediaCarousel
             Layout.fillWidth: true
             radius: 12
-            color: "#2b2b2b"
-            border.color: "#555555"
+            color: panelBg
+            border.color: panelBorder
             border.width: 1
             clip: true
             implicitHeight: 170
@@ -261,9 +260,10 @@ Rectangle {
                     Layout.preferredWidth: 28
                     Layout.alignment: Qt.AlignVCenter
                     height: 28
-                    radius: 6; color: "#00000044"
+                    radius: 6
+                    color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.background, 0.25)
                     visible: mediaCarousel.players.length > 1
-                    Text { anchors.centerIn: parent; text: "‹"; color: "#ff7f32"; font.pixelSize: 18; font.family: "Fira Sans Semibold" }
+                    Text { anchors.centerIn: parent; text: "‹"; color: primary; font.pixelSize: 18; font.family: "Fira Sans Semibold" }
                     MouseArea { anchors.fill: parent; enabled: parent.visible
                         onClicked: mediaCarousel.currentIndex =
                             (mediaCarousel.currentIndex - 1 + mediaCarousel.players.length) % mediaCarousel.players.length }
@@ -276,8 +276,8 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     height: parent.height
                     radius: 10
-                    color: "#333333"
-                    border.color: "#444444"
+                    color: cardBg
+                    border.color: panelBorder
                     clip: true
 
                     ColumnLayout {
@@ -307,7 +307,7 @@ Rectangle {
                                 text: mediaCarousel.cp
                                       ? (mediaCarousel.cp.trackTitle || mediaCarousel.cp.identity || "Media")
                                       : "Nessun player MPRIS attivo"
-                                color: "#ff7f32"
+                                color: primary
                                 font.pixelSize: 16
                                 font.family: "Fira Sans Semibold"
                                 elide: Text.ElideRight
@@ -315,7 +315,7 @@ Rectangle {
                             }
                         }
 
-                        // Controlli sotto (prec / play-pausa / succ)
+                        // Controlli
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 10
@@ -324,24 +324,23 @@ Rectangle {
                                 Layout.alignment: Qt.AlignVCenter
                                 width: 40; height: 40; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
-                                color: ok ? "#444444" : "#333333"
-                                border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: ""; color: ok ? "#dddddd" : "#777777";
-                                    font.pixelSize: 16; font.family: "Fira Sans Semibold" }
+                                color: ok ? ThemePkg.Theme.surface(0.06) : ThemePkg.Theme.surface(0.04)
+                                border.color: panelBorder
+                                Text { anchors.centerIn: parent; text: ""; color: textPrimary; font.pixelSize: 16; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.previous && mediaCarousel.cp.previous() }
                             }
 
                             Rectangle {
                                 Layout.alignment: Qt.AlignVCenter
-                                width: 48; height: 48; radius: 17        // bottone centrale leggermente più grande
+                                width: 48; height: 48; radius: 17
                                 readonly property bool ok: !!mediaCarousel.cp
-                                color: ok ? "#444444" : "#333333"
-                                border.color: "#555555"
+                                color: ok ? ThemePkg.Theme.surface(0.06) : ThemePkg.Theme.surface(0.04)
+                                border.color: panelBorder
                                 Text {
                                     anchors.centerIn: parent
                                     text: (mediaCarousel.cp && mediaCarousel.cp.isPlaying) ? "" : ""
-                                    color: ok ? "#dddddd" : "#777777"
+                                    color: textPrimary
                                     font.pixelSize: 25
                                     font.family: "Fira Sans Semibold"
                                 }
@@ -353,15 +352,13 @@ Rectangle {
                                 Layout.alignment: Qt.AlignVCenter
                                 width: 40; height: 40; radius: 15
                                 readonly property bool ok: !!mediaCarousel.cp
-                                color: ok ? "#444444" : "#333333"
-                                border.color: "#555555"
-                                Text { anchors.centerIn: parent; text: ""; color: ok ? "#dddddd" : "#777777";
-                                    font.pixelSize: 16; font.family: "Fira Sans Semibold" }
+                                color: ok ? ThemePkg.Theme.surface(0.06) : ThemePkg.Theme.surface(0.04)
+                                border.color: panelBorder
+                                Text { anchors.centerIn: parent; text: ""; color: textPrimary; font.pixelSize: 16; font.family: "Fira Sans Semibold" }
                                 MouseArea { anchors.fill: parent; enabled: ok
                                     onClicked: mediaCarousel.cp && mediaCarousel.cp.next && mediaCarousel.cp.next() }
                             }
                         }
-
 
                         // Pallini pagina
                         Row {
@@ -370,7 +367,10 @@ Rectangle {
                             visible: mediaCarousel.players.length > 1
                             Repeater {
                                 model: mediaCarousel.players.length
-                                delegate: Rectangle { width: 6; height: 6; radius: 3; color: index === mediaCarousel.currentIndex ? "#ff7f32" : "#555555" }
+                                delegate: Rectangle {
+                                    width: 6; height: 6; radius: 3
+                                    color: index === mediaCarousel.currentIndex ? primary : panelBorder
+                                }
                             }
                         }
                     }
@@ -381,9 +381,10 @@ Rectangle {
                     Layout.preferredWidth: 28
                     Layout.alignment: Qt.AlignVCenter
                     height: 28
-                    radius: 6; color: "#00000044"
+                    radius: 6
+                    color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.background, 0.25)
                     visible: mediaCarousel.players.length > 1
-                    Text { anchors.centerIn: parent; text: "›"; color: "#ff7f32"; font.pixelSize: 18; font.family: "Fira Sans Semibold" }
+                    Text { anchors.centerIn: parent; text: "›"; color: primary; font.pixelSize: 18; font.family: "Fira Sans Semibold" }
                     MouseArea { anchors.fill: parent; enabled: parent.visible
                         onClicked: mediaCarousel.currentIndex =
                             (mediaCarousel.currentIndex + 1) % mediaCarousel.players.length }
@@ -392,25 +393,34 @@ Rectangle {
         }
         // =================== FINE MEDIA MANAGER =====================
 
-        // Pulsante "Clear all" (niente contenitore, allineato a destra)
+        // Pulsante "Clear all" (customizzato con tema)
         Button {
             id: clearAllBtn
             Layout.alignment: Qt.AlignRight
             visible: server.trackedNotifications.values.length > 0
             text: "Clear all"
-            onClicked: {
-                while (server.trackedNotifications.values.length > 0)
-                    server.trackedNotifications.values[0].dismiss()
+            background: Rectangle {
+                radius: 8
+                color: ThemePkg.Theme.surface(0.06)
+                border.color: panelBorder
+            }
+            contentItem: Text {
+                text: clearAllBtn.text
+                color: primary
+                font.pixelSize: 12
+                font.family: "Fira Sans Semibold"
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                padding: 8
             }
         }
-
 
         // Lista notifiche
         ListView {
             id: notificationList
             Layout.fillWidth: true
 
-            // Altezza: usa dndRow (non dndButton) e metti fallback robusti
             Layout.preferredHeight: {
                 const dndH = dndRow ? Math.max(dndRow.height, dndRow.implicitHeight) : 30
                 let header = dndH + content.spacing
@@ -427,10 +437,8 @@ Rectangle {
             boundsBehavior: Flickable.StopAtBounds
             interactive: contentHeight > height
 
-            // ---- RISERVA SPAZIO alla ScrollBar per evitare sovrapposizioni ----
-            // Larghezza effettiva della scrollbar quando visibile
+            // Riserva spazio alla scrollbar
             property int _vbarWidth: (vbar.visible ? Math.max(8, vbar.implicitWidth) + 4 : 0)
-            // Margine destro della ListView = larghezza scrollbar
             rightMargin: _vbarWidth
 
             ScrollBar.vertical: ScrollBar {
@@ -438,18 +446,15 @@ Rectangle {
                 policy: notificationList.contentHeight > notificationList.height
                         ? ScrollBar.AlwaysOn : ScrollBar.AsNeeded
             }
-            // -------------------------------------------------------------------
 
             model: server.trackedNotifications
 
             delegate: Rectangle {
-                // Usa la larghezza della lista al netto della scrollbar
                 width: notificationList.width - notificationList._vbarWidth
                 radius: 6
-                color: "#333333"
-                border.color: "#555555"
+                color: cardBg
+                border.color: panelBorder
 
-                // calcola una sola volta l'icona (no I/O, no ricalcoli)
                 property string iconSource: root._iconSourceFor(modelData)
 
                 Column {
@@ -476,7 +481,7 @@ Rectangle {
                         Text {
                             id: titleText
                             text: modelData.summary
-                            color: "#ffffff"
+                            color: textPrimary
                             font.pixelSize: 14
                             font.bold: true
                             textFormat: Text.PlainText
@@ -488,18 +493,14 @@ Rectangle {
 
                     Text {
                         id: bodyText
-                        // <-- Aggancio alla larghezza effettiva della card
                         width: parent.width
                         text: modelData.body
-                        color: "#dddddd"
+                        color: textMuted
                         font.pixelSize: 12
                         textFormat: Text.PlainText
-                        // Avvolge anche parole/lunghi URL quando serve
                         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                        // (opz.) elide per casi estremi a fine riga singola
                         elide: Text.ElideRight
                     }
-
 
                     Flow {
                         id: actionsFlow
@@ -513,6 +514,21 @@ Rectangle {
                             delegate: Button {
                                 visible: modelData && modelData.text && modelData.text.length > 0
                                 text: visible ? modelData.text : ""
+                                background: Rectangle {
+                                    radius: 6
+                                    color: ThemePkg.Theme.surface(0.06)
+                                    border.color: panelBorder
+                                }
+                                contentItem: Text {
+                                    text: parent.Button.text
+                                    color: primary
+                                    font.pixelSize: 12
+                                    font.family: "Fira Sans Semibold"
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    elide: Text.ElideRight
+                                    padding: 6
+                                }
                                 onClicked: { if (modelData && modelData.invoke) modelData.invoke() }
                             }
                         }
@@ -521,13 +537,71 @@ Rectangle {
 
                 implicitHeight: contentCol.implicitHeight + 16
 
-                ToolButton {
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 6
-                    text: "✕"
-                    onClicked: modelData.dismiss()
-                }
+// --- Close button coerente e centrato ---
+Item {
+    id: closeBtn
+    anchors.right: parent.right
+    anchors.top: parent.top
+    anchors.margins: 8
+    width: 22
+    height: width
+
+    property bool hovered: false
+    property bool pressed: false
+
+    Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        antialiasing: true
+        // Sfondo = stesso della finestra/pannello
+        color: ThemePkg.Theme.background
+        border.width: hovered ? 1.5 : 1
+        border.color: hovered
+            ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.accent, 0.85)
+            : ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
+    }
+
+    // X vettoriale, sempre perfettamente centrata
+    Shape {
+        anchors.centerIn: parent
+        width: parent.width
+        height: parent.height
+        antialiasing: true
+        opacity: pressed ? 0.8 : 1.0
+
+        ShapePath {
+            strokeWidth: 2.2
+            strokeColor: ThemePkg.Theme.accent
+            capStyle: ShapePath.RoundCap
+            joinStyle: ShapePath.RoundJoin
+            fillColor: "transparent"
+            PathMove { x: 7; y: 7 }
+            PathLine { x: closeBtn.width - 7; y: closeBtn.height - 7 }
+        }
+        ShapePath {
+            strokeWidth: 2.2
+            strokeColor: ThemePkg.Theme.accent
+            capStyle: ShapePath.RoundCap
+            joinStyle: ShapePath.RoundJoin
+            fillColor: "transparent"
+            PathMove { x: closeBtn.width - 7; y: 7 }
+            PathLine { x: 7; y: closeBtn.height - 7 }
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onEntered:  closeBtn.hovered = true
+        onExited:   closeBtn.hovered = false
+        onPressed:  closeBtn.pressed = true
+        onReleased: closeBtn.pressed = false
+        onClicked:  modelData.dismiss()
+    }
+}
+
+
             }
 
             // Placeholder quando non ci sono notifiche
@@ -538,11 +612,10 @@ Rectangle {
                 Text {
                     anchors.centerIn: parent
                     text: root.doNotDisturb ? "Do Not Disturb enabled" : "No notifications"
-                    color: "#aaaaaa"
+                    color: ThemePkg.Theme.withAlpha(textPrimary, 0.6)
                     font.pixelSize: 12
                 }
             }
         }
-
     }
 }

@@ -55,7 +55,7 @@ Variants {
                     focus: overlayWindow.visible
 
                     // Stato e parametri
-                    property string shownOverlay: ""     // "", "connection", "notifications", "power"
+                    property string shownOverlay: ""     // "", "connection", "notifications", "power", "arch"
                     property int    dur: 140
                     property real   scaleIn: 0.98
                     property real   scaleOut: 1.02
@@ -96,9 +96,10 @@ Variants {
                     }
 
                     function compFor(which) {
-                        return which === "connection" ? connectionComp
-                             : which === "notifications" ? notificationsComp
-                             : which === "power" ? powerComp
+                        return which === "connection"     ? connectionComp
+                             : which === "notifications"  ? notificationsComp
+                             : which === "power"          ? powerComp
+                             : which === "arch"           ? archComp
                              : null;
                     }
 
@@ -222,7 +223,6 @@ Variants {
                 }
             }
 
-
             Component {
                 id: powerComp
                 Item {
@@ -334,6 +334,48 @@ Variants {
                     }
                 }
             }
+
+            // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // Nuova overlay: ARCH (placeholder, la sostituiremo nel prossimo prompt)
+            // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            Component {
+                id: archComp
+                Item {
+                    anchors.fill: parent
+                    Rectangle {
+                        id: archPanel
+                        width: 520
+                        height: 360
+                        radius: 12
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: 1
+                        anchors.centerIn: parent
+                        // cattura click per non propagare
+                        MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: {} }
+
+                        // Placeholder; qui inseriremo il contenuto reale nel prossimo step
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 12
+                            Text {
+                                text: "Arch Panel"
+                                color: moduleFontColor
+                                font.pixelSize: 16
+                                font.family: "Fira Sans Semibold"
+                            }
+                            Text {
+                                text: "Placeholder – dimmi i dettagli nel prossimo prompt"
+                                color: moduleFontColor
+                                font.pixelSize: 12
+                                font.family: "Fira Sans Semibold"
+                                opacity: 0.7
+                            }
+                        }
+                    }
+                }
+            }
+            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
             // ----------------
             // Pannello principale
@@ -507,7 +549,7 @@ Variants {
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
-                        anchors { right: timeButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
+                        anchors { right: archButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
 
                         MouseArea {
                             anchors.fill: parent
@@ -529,6 +571,41 @@ Variants {
                             color: moduleFontColor
                             font.pixelSize: 15 * panel.scaleFactor
                             font.family: "Fira Sans Semibold"
+                        }
+                    }
+
+                    // === NUOVO: Tasto Arch tra power e ora ===
+                    Rectangle {
+                        id: archButton
+                        width: 35 * panel.scaleFactor
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: 1 * panel.scaleFactor
+                        anchors { right: timeButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if ((switcher.shownOverlay === "") && (switcher.pendingIndex === -1)) {
+                                    switcher.open("arch");
+                                } else if (switcher.shownOverlay === "arch") {
+                                    switcher.close();
+                                } else {
+                                    switcher.swap("arch");
+                                }
+                            }
+                        }
+
+                        // Logo Arch Linux (Nerd Font: nf-linux-archlinux)
+                        Text {
+                            anchors.centerIn: parent
+                            text: ""
+                            color: moduleFontColor
+                            font.pixelSize: 16 * panel.scaleFactor
+                            font.family: "CaskaydiaMono Nerd Font"
                         }
                     }
 

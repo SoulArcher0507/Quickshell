@@ -36,10 +36,9 @@ Variants {
                 screen: delegateRoot.modelData
                 anchors { top: true; left: true; right: true; bottom: true }
                 color: "transparent"
-                // visibile durante apertura/chiusura o quando è mostrato qualcosa
                 visible: (switcher.shownOverlay !== "") || (switcher.pendingIndex !== -1)
 
-                // Click-outside per chiudere (trasparente, nessun oscuramento)
+                // Click-outside per chiudere
                 MouseArea {
                     anchors.fill: parent
                     z: 0
@@ -51,16 +50,14 @@ Variants {
                     id: switcher
                     anchors.fill: parent
                     z: 1
-                    // assicura ESC attivo
                     focus: overlayWindow.visible
 
-                    // Stato e parametri
-                    property string shownOverlay: ""     // "", "connection", "notifications", "power", "arch"
+                    // "", "connection", "notifications", "power", "arch"
+                    property string shownOverlay: ""
                     property int    dur: 140
                     property real   scaleIn: 0.98
                     property real   scaleOut: 1.02
 
-                    // Finalizzazione con Timer (chiusura o swap)
                     property int    pendingIndex: -1
                     property string pendingShownOverlay: ""
 
@@ -103,7 +100,6 @@ Variants {
                              : null;
                     }
 
-                    // Doppio loader
                     Loader {
                         id: loaderA
                         anchors.fill: parent
@@ -131,7 +127,6 @@ Variants {
                     function currentLoader() { return activeIndex === 0 ? loaderA : loaderB }
                     function otherLoader()   { return activeIndex === 0 ? loaderB : loaderA }
 
-                    // API
                     function open(which) {
                         if (!which) return;
                         var L = currentLoader();
@@ -161,7 +156,6 @@ Variants {
                         inL.opacity = 0.0;
                         inL.scale   = scaleIn;
 
-                        // avvia le animazioni (Behavior fa il resto)
                         outL.opacity = 0.0;
                         outL.scale   = scaleOut;
                         inL.opacity  = 1.0;
@@ -181,7 +175,6 @@ Variants {
                 id: connectionComp
                 Item {
                     anchors.fill: parent
-                    // pannello ancorato in alto a destra
                     Rectangle {
                         id: connectionPanel
                         width: 300
@@ -191,7 +184,6 @@ Variants {
                         border.color: moduleBorderColor
                         border.width: 1
                         anchors { top: parent.top; right: parent.right; rightMargin: 16 }
-                        // Previeni click-through
                         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: {} }
                         ConnectionSettings { id: connectionContent; anchors.fill: parent }
                     }
@@ -204,19 +196,15 @@ Variants {
                     anchors.fill: parent
                     Rectangle {
                         id: notificationPanel
-                        // --- CAMBIA QUI ---
-                        // width: 300
-                        // height: notificationContent.implicitHeight
                         property int sideMargin: 16
                         width:  Math.min(notificationContent.implicitWidth,  overlayWindow.width  - sideMargin*2)
                         height: Math.min(notificationContent.implicitHeight, overlayWindow.height - sideMargin*2)
-                        // ------------------
 
                         radius: 10
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1
-                        anchors { top: parent.top; right: parent.right; topMargin: switcher.overlayTopOffset; rightMargin: 16 }
+                        anchors { top: parent.top; right: parent.right; rightMargin: 16 }
                         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: {} }
                         Notifications { id: notificationContent; anchors.fill: parent }
                     }
@@ -335,47 +323,146 @@ Variants {
                 }
             }
 
-            // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-            // Nuova overlay: ARCH (placeholder, la sostituiremo nel prossimo prompt)
-            // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            // =======================
+            // OVERLAY: ARCH (FIXED)
+            // =======================
             Component {
                 id: archComp
                 Item {
                     anchors.fill: parent
+
+                    // === Inserisci QUI i tuoi script ===
+                    property string changeWallpaperScript: "$HOME/.config/swaybg/wallpaper.sh"
+                    property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
+                    property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
+
+                    function runScript(path) {
+                        if (!path || path.trim() === "") return;
+                        // virgolette per gestire spazi nel path
+                        Hyprland.dispatch('exec "' + path + '"');
+                    }
+
                     Rectangle {
                         id: archPanel
-                        width: 520
-                        height: 360
-                        radius: 12
+                        radius: 10
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1
-                        anchors.centerIn: parent
-                        // cattura click per non propagare
-                        MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onClicked: {} }
 
-                        // Placeholder; qui inseriremo il contenuto reale nel prossimo step
+                        // stessa posizione di Connessioni/Notifiche
+                        anchors { top: parent.top; right: parent.right; topMargin: switcher.overlayTopOffset; rightMargin: 16 }
+
+                        // Dimensioni guidate dal contenuto (niente anchors.fill sul contenuto!)
+                        width: Math.max(220, contentBox.implicitWidth + 24)
+                        height: contentBox.implicitHeight + 24
+
+                        // --- Contenuto compatto ---
                         Column {
-                            anchors.centerIn: parent
-                            spacing: 12
+                            id: contentBox
+                            anchors { top: parent.top; left: parent.left; topMargin: 12; leftMargin: 12 }
+                            spacing: 8
+
                             Text {
-                                text: "Arch Panel"
+                                text: "Arch tools"
                                 color: moduleFontColor
-                                font.pixelSize: 16
+                                font.pixelSize: 14
                                 font.family: "Fira Sans Semibold"
                             }
-                            Text {
-                                text: "Placeholder – dimmi i dettagli nel prossimo prompt"
-                                color: moduleFontColor
-                                font.pixelSize: 12
-                                font.family: "Fira Sans Semibold"
-                                opacity: 0.7
+
+                            // Bottoniera in stile "pill" (come in barra)
+                            Row {
+                                id: btnRow
+                                spacing: 8
+
+                                // --- Cambia wallpaper ---
+                                Rectangle {
+                                    width: 36; height: 30
+                                    radius: 10
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "" // icona immagine
+                                        color: moduleFontColor
+                                        font.pixelSize: 16
+                                        font.family: "CaskaydiaMono Nerd Font"
+                                    }
+                                    MouseArea {
+                                        id: maWall
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: parent.color = "#3a3a3a"
+                                        onExited:  parent.color = moduleColor
+                                        onClicked: runScript(changeWallpaperScript)
+                                    }
+                                    ToolTip.visible: maWall.containsMouse
+                                    ToolTip.delay: 250
+                                    ToolTip.text: "Cambia wallpaper"
+                                }
+
+                                // --- Toggle autolock ---
+                                Rectangle {
+                                    width: 36; height: 30
+                                    radius: 10
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "" // lucchetto aperto (toggle)
+                                        color: moduleFontColor
+                                        font.pixelSize: 16
+                                        font.family: "CaskaydiaMono Nerd Font"
+                                    }
+                                    MouseArea {
+                                        id: maLock
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: parent.color = "#3a3a3a"
+                                        onExited:  parent.color = moduleColor
+                                        onClicked: runScript(toggleAutolockScript)
+                                    }
+                                    ToolTip.visible: maLock.containsMouse
+                                    ToolTip.delay: 250
+                                    ToolTip.text: "Disattiva/attiva autolock"
+                                }
+
+                                // --- Clipboard manager ---
+                                Rectangle {
+                                    width: 36; height: 30
+                                    radius: 10
+                                    color: moduleColor
+                                    border.color: moduleBorderColor
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "" // appunti
+                                        color: moduleFontColor
+                                        font.pixelSize: 16
+                                        font.family: "CaskaydiaMono Nerd Font"
+                                    }
+                                    MouseArea {
+                                        id: maClip
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: parent.color = "#3a3a3a"
+                                        onExited:  parent.color = moduleColor
+                                        onClicked: runScript(openClipboardScript)
+                                    }
+                                    ToolTip.visible: maClip.containsMouse
+                                    ToolTip.delay: 250
+                                    ToolTip.text: "Apri clipboard manager"
+                                }
                             }
                         }
                     }
                 }
             }
-            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 
             // ----------------
             // Pannello principale
@@ -574,7 +661,7 @@ Variants {
                         }
                     }
 
-                    // === NUOVO: Tasto Arch tra power e ora ===
+                    // === Tasto Arch tra power e ora ===
                     Rectangle {
                         id: archButton
                         width: 35 * panel.scaleFactor
@@ -599,7 +686,6 @@ Variants {
                             }
                         }
 
-                        // Logo Arch Linux (Nerd Font: nf-linux-archlinux)
                         Text {
                             anchors.centerIn: parent
                             text: ""
@@ -609,10 +695,9 @@ Variants {
                         }
                     }
 
-                    // Time on the far right (auto-width based on content)
+                    // Time (auto-width)
                     Rectangle{
                         id: timeButton
-                        // removed fixed width; make it follow text size + padding
                         property real hpad: 16 * panel.scaleFactor
                         implicitWidth: timeDisplay.implicitWidth + hpad * 2
                         width: implicitWidth
@@ -629,7 +714,7 @@ Variants {
                             anchors {
                                 right: parent.right
                                 verticalCenter: parent.verticalCenter
-                                rightMargin: timeButton.hpad   // keep symmetric padding
+                                rightMargin: timeButton.hpad
                             }
                             property string currentTime: ""
                             text: currentTime

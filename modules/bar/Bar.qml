@@ -195,6 +195,30 @@ Variants {
                         pendingShownOverlay = which;
                         finalizeSwap.start();
                     }
+
+                    function toggle(which) {
+                        if (!which) return;
+                        if ((switcher.shownOverlay === "") && (switcher.pendingIndex === -1)) {
+                            switcher.open(which);
+                        } else if (switcher.shownOverlay === which) {
+                            switcher.close();
+                        } else {
+                            switcher.swap(which);
+                        }
+                    }
+
+                    GlobalShortcut {
+                        appid: "quickshell"         // scegli un appid e non cambiarlo più
+                        name: "power-toggle"        // deve essere univoco per appid
+                        description: "Toggle power menu"
+                        onPressed: switcher.toggle("power")
+                    }
+
+                    IpcHandler {
+                        target: "power"
+                        // NB: per l'IPC le firme vanno tipizzate
+                        function toggle(): void { switcher.toggle("power") }
+                    }
                 }
             }
 

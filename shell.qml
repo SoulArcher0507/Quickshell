@@ -7,6 +7,8 @@ import "modules/bar/"
 import "modules/notifications" as Notifications
 import Quickshell.Services.Notifications as NS
 import "modules/overlays"
+import "modules/theme" as ThemePkg
+
 
 ShellRoot {
     id: root

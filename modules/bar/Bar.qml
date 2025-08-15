@@ -8,6 +8,7 @@ import Quickshell.Services.Notifications
 import "widgets/"
 import org.kde.layershell 1.0
 import Quickshell.Io
+import "modules/theme" as ThemePkg
 
 
 // Create a proper panel window

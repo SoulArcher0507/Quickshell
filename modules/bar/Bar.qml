@@ -390,6 +390,13 @@ Variants {
                     property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
                     property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
 
+                    // === Nuovi script aggiornamenti (li fornisco nel prossimo messaggio) ===
+                    property string updatesCheckScript:   "$HOME/.config/hypr/scripts/updates-check.sh"
+                    property string updatesAllScript:     "$HOME/.config/hypr/scripts/update-all.sh"
+                    property string updatePacmanScript:   "$HOME/.config/hypr/scripts/update-pacman.sh"
+                    property string updateAurScript:      "$HOME/.config/hypr/scripts/update-aur.sh"       // yay/AUR
+                    property string updateFlatpakScript:  "$HOME/.config/hypr/scripts/update-flatpak.sh"
+
                     // Check real Hypridle status: exit 0 => running (autolock ON), non-zero => not running (autolock OFF)
                     property string autolockStatusCmd: "pgrep -x hypridle"
                     property int    autolockStatusPollMs: 3000
@@ -397,13 +404,20 @@ Variants {
                     // true => autolock disabled (Hypridle OFF)
                     property bool autolockDisabled: false
 
+                    // === Stato aggiornamenti ===
+                    property int updPacman: 0
+                    property int updAur: 0
+                    property int updFlatpak: 0
+                    property int updTotal: 0
+                    property string updLastTs: ""
+
                     function runScript(path, args) {
                         if (!path || path.trim() === "") return;
-                        // quota SOLO il path, poi aggiunge gli argomenti
                         var cmd = '"' + path + '"' + (args && args.length ? " " + args : "");
                         Hyprland.dispatch("exec " + cmd);
                     }
 
+                    // --- Hypridle status ---
                     Process {
                         id: autolockStatusProc
                         command: ["bash", "-lc", autolockStatusCmd]
@@ -418,14 +432,74 @@ Variants {
                         repeat: true
                         onTriggered: autolockStatusProc.start()
                     }
-                    // Recheck shortly after toggle
                     Timer {
                         id: autolockRecheck
                         interval: 350
                         repeat: false
                         onTriggered: autolockStatusProc.start()
                     }
-                    Component.onCompleted: autolockStatusProc.start()
+
+                    // --- Update counts (robusto anche se lo script ancora non c'è) ---
+                    property string _updatesCheckCmd: "([ -x \"$HOME/.config/hypr/scripts/updates-check.sh\" ] && \"$HOME/.config/hypr/scripts/updates-check.sh\") || echo '{\"pacman\":0,\"aur\":0,\"flatpak\":0,\"total\":0}'"
+
+                    Process {
+                        id: updatesCheckProc
+                        command: ["bash", "-lc", _updatesCheckCmd]
+
+                        // >>> AGGIUNTO: raccoglie l'output in una stringa
+                        stdout: StdioCollector {
+                            id: updatesCheckOut
+                            waitForEnd: true
+                        }
+
+                        onExited: function(exitCode, exitStatus) {
+                            var out = (updatesCheckOut.text || "").trim();
+
+                            try {
+                                var obj = JSON.parse(out);
+                                updPacman  = obj.pacman  || 0;
+                                updAur     = obj.aur     || 0;
+                                updFlatpak = obj.flatpak || 0;
+                                updTotal   = obj.total   || (updPacman + updAur + updFlatpak);
+                            } catch (e) {
+                                // fallback: prova a pescare 3-4 numeri dall'output
+                                var m = out.match(/(\d+)[^\d]+(\d+)[^\d]+(\d+)(?:[^\d]+(\d+))?/);
+                                if (m) {
+                                    updPacman  = parseInt(m[1]);
+                                    updAur     = parseInt(m[2]);
+                                    updFlatpak = parseInt(m[3]);
+                                    updTotal   = m[4] ? parseInt(m[4]) : (updPacman + updAur + updFlatpak);
+                                } else {
+                                    updPacman = updAur = updFlatpak = updTotal = 0;
+                                }
+                            }
+
+                            var now = new Date();
+                            updLastTs = Qt.formatTime(now, "hh:mm");
+                        }
+                    }
+
+
+                    Timer {
+                        id: updatesPoll
+                        interval: 15 * 60 * 1000   // ogni 15 minuti
+                        running: true
+                        repeat: true
+                        onTriggered: updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd])
+                    }
+
+                    // Recheck poco dopo aver lanciato un update
+                    Timer {
+                        id: updatesRecheckSoon
+                        interval: 5000
+                        repeat: false
+                        onTriggered: updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd])
+                    }
+
+                    Component.onCompleted: {
+                        autolockStatusProc.start();
+                        updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd]);
+                    }
 
                     Rectangle {
                         id: archPanel
@@ -433,17 +507,15 @@ Variants {
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1
-                        // stessa posizione di Connessioni/Notifiche
                         anchors { top: parent.top; right: parent.right; rightMargin: 16 }
 
-                        // dimensioni guidate dal contenuto (niente anchors.fill sul contenuto)
                         width: Math.max(220, contentBox.implicitWidth + 24)
                         height: contentBox.implicitHeight + 24
 
                         Column {
                             id: contentBox
-                            anchors { top: parent.top; left: parent.left; topMargin: 12; leftMargin: 12 }
-                            spacing: 8
+                            anchors { top: parent.top; left: parent.left; topMargin: 12; leftMargin: 12; rightMargin: 12 }
+                            spacing: 10
 
                             Text {
                                 text: "Arch tools"
@@ -452,6 +524,252 @@ Variants {
                                 font.family: "Fira Sans Semibold"
                             }
 
+                            // ======================
+                            // BLOCCO AGGIORNAMENTI
+                            // ======================
+                            Rectangle {
+                                id: updatesGroup
+                                radius: 10
+                                color: ThemePkg.Theme.surface(0.06)
+                                border.color: moduleBorderColor
+                                border.width: 1
+
+                                // padding e auto-size in base al contenuto
+                                property int pad: 8
+                                implicitWidth: updatesCol.implicitWidth + pad * 2
+                                implicitHeight: updatesCol.implicitHeight + pad * 2
+
+                                Column {
+                                    id: updatesCol
+                                    anchors.fill: parent
+                                    anchors.margins: updatesGroup.pad
+                                    spacing: 8
+
+                                    // Totale (centrato)
+                                    Rectangle {
+                                        id: totalUpdatesBtn
+                                        radius: 10
+                                        height: 34
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        color: maUpdAll.containsMouse
+                                            ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                            : moduleColor
+                                        border.color: (updTotal > 0 ? ThemePkg.Theme.accent : moduleBorderColor)
+                                        border.width: 1
+                                        implicitWidth: totalUpdRow.implicitWidth + 16
+
+                                        Row {
+                                            id: totalUpdRow
+                                            spacing: 8
+                                            anchors.centerIn: parent
+                                            Text {
+                                                text: ""
+                                                color: moduleFontColor
+                                                font.pixelSize: 16
+                                                font.family: "CaskaydiaMono Nerd Font"
+                                            }
+                                            Text {
+                                                text: (updTotal || 0) + " updates"
+                                                color: moduleFontColor
+                                                font.pixelSize: 14
+                                                font.family: "Fira Sans Semibold"
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: maUpdAll
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onClicked: function(mouse) {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    showPkgList("all")
+                                                } else {
+                                                    runScript(updatesAllScript)
+                                                    updatesRecheckSoon.start()
+                                                }
+                                            }
+                                        }
+
+                                        ToolTip.visible: maUpdAll.containsMouse
+                                        ToolTip.delay: 220
+                                        ToolTip.text: "Update everything\nPacman: " + updPacman + " • AUR: " + updAur + " • Flatpak: " + updFlatpak +
+                                                    (updLastTs ? ("\nLast check: " + updLastTs) : "")
+                                    }
+
+                                    // RIGA per gestore (tre pulsanti dentro il contenitore)
+                                    Row {
+                                        id: perManagerRow
+                                        spacing: 8
+                                        anchors.horizontalCenter: parent.horizontalCenter
+
+                                        // dimensioni uniformi per i 3 tile
+                                        property int tileW: 92
+                                        property int tileH: 56
+
+                                        // Pacman
+                                        Rectangle {
+                                            width: perManagerRow.tileW
+                                            height: perManagerRow.tileH
+                                            radius: 10
+                                            color: maUpdPac.containsMouse
+                                                ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                                : moduleColor
+                                            border.color: (updPacman > 0 ? ThemePkg.Theme.accent : moduleBorderColor)
+                                            border.width: 1
+
+                                            Column {
+                                                anchors.centerIn: parent
+                                                spacing: 2
+                                                Text {
+                                                    text: updPacman
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 16
+                                                    font.family: "Fira Sans Semibold"
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                                Text {
+                                                    text: "pacman"
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 11
+                                                    font.family: "Fira Sans Semibold"
+                                                    opacity: 0.85
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: maUpdPac
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                onClicked: function(mouse) {
+                                                    if (mouse.button === Qt.RightButton) {
+                                                        showPkgList("pacman")
+                                                    } else {
+                                                        runScript(updatePacmanScript)
+                                                        updatesRecheckSoon.start()
+                                                    }
+                                                }
+                                            }
+                                            ToolTip.visible: maUpdPac.containsMouse
+                                            ToolTip.delay: 220
+                                            ToolTip.text: "Update pacman only"
+                                        }
+
+                                        // AUR
+                                        Rectangle {
+                                            width: perManagerRow.tileW
+                                            height: perManagerRow.tileH
+                                            radius: 10
+                                            color: maUpdAur.containsMouse
+                                                ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                                : moduleColor
+                                            border.color: (updAur > 0 ? ThemePkg.Theme.accent : moduleBorderColor)
+                                            border.width: 1
+
+                                            Column {
+                                                anchors.centerIn: parent
+                                                spacing: 2
+                                                Text {
+                                                    text: updAur
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 16
+                                                    font.family: "Fira Sans Semibold"
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                                Text {
+                                                    text: "AUR"
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 11
+                                                    font.family: "Fira Sans Semibold"
+                                                    opacity: 0.85
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: maUpdAur
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                onClicked: function(mouse) {
+                                                    if (mouse.button === Qt.RightButton) {
+                                                        showPkgList("aur")
+                                                    } else {
+                                                        runScript(updateAurScript)
+                                                        updatesRecheckSoon.start()
+                                                    }
+                                                }
+                                            }
+                                            ToolTip.visible: maUpdAur.containsMouse
+                                            ToolTip.delay: 220
+                                            ToolTip.text: "Update AUR only"
+                                        }
+
+                                        // Flatpak
+                                        Rectangle {
+                                            width: perManagerRow.tileW
+                                            height: perManagerRow.tileH
+                                            radius: 10
+                                            color: maUpdFlat.containsMouse
+                                                ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                                : moduleColor
+                                            border.color: (updFlatpak > 0 ? ThemePkg.Theme.accent : moduleBorderColor)
+                                            border.width: 1
+
+                                            Column {
+                                                anchors.centerIn: parent
+                                                spacing: 2
+                                                Text {
+                                                    text: updFlatpak
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 16
+                                                    font.family: "Fira Sans Semibold"
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                                Text {
+                                                    text: "Flatpak"
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 11
+                                                    font.family: "Fira Sans Semibold"
+                                                    opacity: 0.85
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                }
+                                            }
+                                            MouseArea {
+                                                id: maUpdFlat
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                onClicked: function(mouse) {
+                                                    if (mouse.button === Qt.RightButton) {
+                                                        showPkgList("flatpak")
+                                                    } else {
+                                                        runScript(updateFlatpakScript)
+                                                        updatesRecheckSoon.start()
+                                                    }
+                                                }
+                                            }
+                                            ToolTip.visible: maUpdFlat.containsMouse
+                                            ToolTip.delay: 220
+                                            ToolTip.text: "Update Flatpak only"
+                                        }
+                                    }
+                                }
+                            }
+
+
+
+                            // ====== Pulsanti originali ======
                             Row {
                                 spacing: 8
 
@@ -491,7 +809,6 @@ Variants {
                                     width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
-                                    // RED when autolock is DISABLED
                                     color: switcher.autolockDisabled
                                         ? (hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.danger, 0.85)
                                         : ThemePkg.Theme.withAlpha(ThemePkg.Theme.danger, 0.75))
@@ -501,7 +818,6 @@ Variants {
                                     border.width: 1
                                     Behavior on color { ColorAnimation { duration: 120 } }
 
-                                    // closed lock when DISABLED
                                     Text {
                                         anchors.centerIn: parent
                                         text: switcher.autolockDisabled ? "" : ""
@@ -530,13 +846,12 @@ Variants {
                                         : "Autolock is ON (click to disable)"
                                 }
 
-
                                 // Open clipboard manager
                                 Rectangle {
                                     width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
-                                    color: hovered ? "#3a3a3a" : moduleColor
+                                    color: hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08) : moduleColor
                                     border.color: moduleBorderColor
                                     border.width: 1
                                     Behavior on color { ColorAnimation { duration: 120 } }
@@ -788,7 +1103,6 @@ Variants {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            // (click azione non richiesta - lasciato vuoto per futura espansione)
                         }
 
                         ToolTip.visible: maBatt.containsMouse

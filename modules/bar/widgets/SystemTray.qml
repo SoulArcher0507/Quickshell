@@ -3,7 +3,6 @@ import QtQuick.Controls 2.15
 import Quickshell
 import Quickshell.Services.SystemTray
 
-
 // System tray widget that displays system tray icons
 Item {
     id: systemTrayWidget
@@ -50,11 +49,30 @@ Item {
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                 hoverEnabled: true
 
+                // --- anchor point (in window coords) calcolato al click ---
+                property real _anchorX: 0
+                property real _anchorY: 0
+
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.LeftButton) {
                         trayItem.activate()
                     } else if (mouse.button === Qt.RightButton) {
                         if (trayItem.hasMenu) {
+                            // 1) prendi la posizione globale del click
+                            const gx = mouse.screenX
+                            const gy = mouse.screenY
+                            // 2) rimappa alle coordinate della finestra del pannello
+                            const w = QsWindow.window
+                            if (w && w.mapFromGlobal) {
+                                const pt = w.mapFromGlobal(gx, gy)
+                                trayMouseArea._anchorX = pt.x
+                                trayMouseArea._anchorY = pt.y
+                            } else {
+                                // fallback: mappa l'angolo del MouseArea nella finestra
+                                const p = trayMouseArea.mapToItem(w ? w.contentItem : null, 0, 0)
+                                trayMouseArea._anchorX = p.x + trayMouseArea.width / 2
+                                trayMouseArea._anchorY = p.y + trayMouseArea.height
+                            }
                             menuAnchor.open()
                         }
                     } else if (mouse.button === Qt.MiddleButton) {
@@ -66,20 +84,23 @@ Item {
                     trayItem.scroll(wheel.angleDelta.x, wheel.angleDelta.y)
                 }
 
-                // Global position for the context menu anchor
-                property point globalPos: mapToItem(systemTrayWidget.bar.contentItem, 0, 0)
-
                 // Context menu anchor
                 QsMenuAnchor {
                     id: menuAnchor
 
                     menu: trayItem.menu
-                    anchor.window: systemTrayWidget.bar
-                    anchor.rect.x: trayMouseArea.globalPos.x
-                    anchor.rect.y: trayMouseArea.globalPos.y
+                    // Usa la vera finestra del pannello
+                    anchor.window: QsWindow.window
+
+                    // Allinea il menu al punto di click (sotto l'icona)
+                    // Nota: coordinate già in spazio della finestra
+                    anchor.rect.x: trayMouseArea._anchorX - trayMouseArea.width / 2
+                    anchor.rect.y: trayMouseArea._anchorY
                     anchor.rect.width: trayMouseArea.width
                     anchor.rect.height: trayMouseArea.height
-                    anchor.edges: Edges.Bottom
+
+                    // Apri VERSO IL BASSO dal punto di ancoraggio
+                    anchor.edges: Edges.Top
                 }
 
                 // Background rectangle with hover effect
@@ -118,23 +139,14 @@ Item {
                     }
                 }
 
-                
                 // ToolTip attachable
                 ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
                 ToolTip.text: trayItem.title
-                ToolTip.delay: 800   // ms di ritardo prima di mostrare
+                ToolTip.delay: 800
             }
         }
     }
 
-    // Show a placeholder when no system tray items are available
-//    Text {
-//        anchors.centerIn: parent
-//        visible: SystemTray.items.length === 0
-//        text: "No tray items"
-//        color: surfaceVariant
-//        font.pixelSize: 10 * scaleFactor
-//        font.family: "CaskaydiaMono Nerd Font"
-//        opacity: 0.7
-//    }
+    // Placeholder opzionale quando non ci sono item
+    // Text { ... }
 }

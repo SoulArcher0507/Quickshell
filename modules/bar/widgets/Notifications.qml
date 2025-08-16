@@ -56,7 +56,6 @@ Rectangle {
     readonly property color textPrimary:   ThemePkg.Theme.foreground
     readonly property color textMuted:     ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.85)
 
-    // Il wrapper esterno (notificationPanel in Bar) ha già sfondo/bordo
     color: "transparent"
     radius: 0
     border.color: panelBorder
@@ -94,7 +93,6 @@ Rectangle {
     property var _iconCache: ({})
     property var _artCache:  ({})
 
-    // (Fallback non usati: li lascio in caso servano, ma NON vengono chiamati)
     function _fileExists(urlOrPath) {
         var url = urlOrPath.startsWith("file:") ? urlOrPath : "file://" + urlOrPath
         try { var xhr = new XMLHttpRequest(); xhr.open("GET", url, false); xhr.send()
@@ -133,39 +131,64 @@ Rectangle {
         return ""
     }
 
-    // ===== Versione veloce e cache-ata =====
     function _iconSourceFor(n) {
-        const key = JSON.stringify({
-            appIconName: n && n.appIconName, iconName: n && n.iconName,
-            appIcon: n && n.appIcon, image: n && n.image,
-            desktop: (n && (n.desktopEntry || n.desktopId)),
-            appName: n && n.appName
-        })
-        if (_iconCache[key]) return _iconCache[key]
+        function pick(s){ return (s && typeof s === "string" && s.length > 0) ? s : "" }
+        if (!n) return "image://theme/application-x-executable"
 
-        function pick(s){ return (typeof s === "string" && s.length > 0) ? s : "" }
+        const h = n.hints || {}
+
+        // 1) Percorso esplicito (hints o payload)
+        const explicitPath = pick(h["image-path"]) || pick(n.image) || pick(n.appIcon)
+        if (explicitPath) {
+            const p = explicitPath
+            if (p.startsWith("file:") || p.startsWith("/")) return p.startsWith("file:") ? p : "file://" + p
+            return "image://theme/" + p
+        }
+
+        // 2) Nome icona (hints o campi classici)
+        const byName = pick(h["icon-name"]) || pick(n.appIconName) || pick(n.iconName)
+        if (byName) {
+            const guess = _guessIconFileFromName(byName)
+            return guess || ("image://theme/" + byName)
+        }
+
+        // 3) desktop-entry → leggi Icon= dal .desktop
+        const desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId)
+        if (desk) {
+            const iconFromDesk = _readDesktopIcon(desk)
+            if (iconFromDesk) {
+                if (iconFromDesk.startsWith("file:") || iconFromDesk.startsWith("/"))
+                    return iconFromDesk.startsWith("file:") ? iconFromDesk : "file://" + iconFromDesk
+                const g = _guessIconFileFromName(iconFromDesk)
+                return g || ("image://theme/" + iconFromDesk.replace(/\.desktop$/,""))
+            }
+            return "image://theme/" + desk.replace(/\.desktop$/,"")
+        }
+
+        // 4) fallback: prova a derivare dal nome app
+        const appn = pick(n.appName)
+        if (appn) {
+            const name = appn.replace(/\s+/g,"-").toLowerCase()
+            const g = _guessIconFileFromName(name)
+            return g || ("image://theme/" + name)
+        }
 
         const pathish = pick(n && n.image) || pick(n && n.appIcon)
         if (pathish) {
             const low = pathish.toLowerCase()
-            const src = (low.startsWith("file:") || low.startsWith("qrc:") || low.startsWith("/"))
-                        ? (low.startsWith("file:") ? pathish : "file://" + pathish)
-                        : ("image://theme/" + pathish)
+            const isUrl = low.startsWith("http:") || low.startsWith("https:") || low.startsWith("data:")
+            const isFileLike = low.startsWith("file:") || low.startsWith("qrc:") || low.startsWith("/")
+            const src = (isUrl || isFileLike)
+                ? (low.startsWith("file:") || isUrl ? pathish : "file://" + pathish)
+                : ("image://theme/" + pathish)
             _iconCache[key] = src; return src
         }
 
-        const byName = pick(n && n.appIconName) || pick(n && n.iconName)
-        if (byName) { _iconCache[key] = "image://theme/" + byName; return _iconCache[key] }
 
-        const desk = pick(n && (n.desktopEntry || n.desktopId))
-        if (desk) { _iconCache[key] = "image://theme/" + desk.replace(/\.desktop$/,""); return _iconCache[key] }
-
-        const appn = pick(n && n.appName)
-        if (appn) { _iconCache[key] = "image://theme/" + appn.replace(/\s+/g,"-").toLowerCase(); return _iconCache[key] }
-
-        _iconCache[key] = "image://theme/dialog-information"
-        return _iconCache[key]
+        // 5) fallback definitivo
+        return "image://theme/dialog-information"
     }
+
 
     function artFor(p){
         if (!p) return "image://theme/audio-x-generic"
@@ -207,7 +230,6 @@ Rectangle {
 
             Item { Layout.fillWidth: true }
 
-            // Switch stile pillola
             Rectangle {
                 id: dndSwitch
                 width: 46; height: 24; radius: 12
@@ -255,7 +277,6 @@ Rectangle {
                 anchors.margins: 8
                 spacing: 8
 
-                // Freccia sinistra
                 Rectangle {
                     Layout.preferredWidth: 28
                     Layout.alignment: Qt.AlignVCenter
@@ -269,7 +290,6 @@ Rectangle {
                             (mediaCarousel.currentIndex - 1 + mediaCarousel.players.length) % mediaCarousel.players.length }
                 }
 
-                // Card centrale
                 Rectangle {
                     id: card
                     Layout.fillWidth: true
@@ -285,7 +305,6 @@ Rectangle {
                         anchors.margins: 10
                         spacing: 10
 
-                        // Header: cover PICCOLA + titolo a destra
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 10
@@ -315,7 +334,6 @@ Rectangle {
                             }
                         }
 
-                        // Controlli
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 10
@@ -360,7 +378,6 @@ Rectangle {
                             }
                         }
 
-                        // Pallini pagina
                         Row {
                             Layout.alignment: Qt.AlignHCenter
                             spacing: 6
@@ -376,7 +393,6 @@ Rectangle {
                     }
                 }
 
-                // Freccia destra
                 Rectangle {
                     Layout.preferredWidth: 28
                     Layout.alignment: Qt.AlignVCenter
@@ -393,7 +409,6 @@ Rectangle {
         }
         // =================== FINE MEDIA MANAGER =====================
 
-        // Pulsante "Clear all" (customizzato con tema)
         Button {
             id: clearAllBtn
             Layout.alignment: Qt.AlignRight
@@ -437,7 +452,6 @@ Rectangle {
             boundsBehavior: Flickable.StopAtBounds
             interactive: contentHeight > height
 
-            // Riserva spazio alla scrollbar
             property int _vbarWidth: (vbar.visible ? Math.max(8, vbar.implicitWidth) + 4 : 0)
             rightMargin: _vbarWidth
 
@@ -471,12 +485,36 @@ Rectangle {
 
                         Image {
                             id: appIcon
-                            width: 20; height: 20
+                            width: 22; height: 22
                             source: iconSource
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
                             smooth: true; cache: true
+
+                            // Se il provider tema non risolve, prova file reali o .desktop
+                            onStatusChanged: {
+                                if (status === Image.Error) {
+                                    const h = (modelData && modelData.hints) ? modelData.hints : {}
+                                    const desk = (modelData && (modelData.desktopEntry || modelData.desktopId)) || h["desktop-entry"]
+                                    let fallback = ""
+
+                                    if (desk) {
+                                        const dIcon = root._readDesktopIcon(desk)
+                                        if (dIcon) {
+                                            fallback = (dIcon.startsWith("file:") || dIcon.startsWith("/"))
+                                                    ? (dIcon.startsWith("file:") ? dIcon : "file://" + dIcon)
+                                                    : root._guessIconFileFromName(dIcon)
+                                        }
+                                    }
+                                    if (!fallback) {
+                                        const byName = (modelData && (modelData.appIconName || modelData.iconName)) || h["icon-name"] || ""
+                                        fallback = root._guessIconFileFromName(byName)
+                                    }
+                                    source = fallback || "image://theme/application-x-executable"
+                                }
+                            }
                         }
+
 
                         Text {
                             id: titleText
@@ -502,37 +540,53 @@ Rectangle {
                         elide: Text.ElideRight
                     }
 
+                    // ======= AZIONI NOTIFICA (FIX BOTTONI & TESTO) =======
                     Flow {
                         id: actionsFlow
                         width: parent.width
-                        spacing: 6
+                        spacing: 8
                         visible: modelData.actions && modelData.actions.length > 0
                         height: visible ? implicitHeight : 0
 
                         Repeater {
                             model: modelData.actions
                             delegate: Button {
+                                id: actionBtn
+                                // il "modelData" qui è l'oggetto azione { text, invoke, … }
                                 visible: modelData && modelData.text && modelData.text.length > 0
                                 text: visible ? modelData.text : ""
+
+                                // dimensioni leggibili
+                                leftPadding: 10
+                                rightPadding: 10
+                                topPadding: 6
+                                bottomPadding: 6
+                                implicitHeight: contentItem.implicitHeight + topPadding + bottomPadding
+                                implicitWidth: Math.max(96, contentItem.implicitWidth + leftPadding + rightPadding)
+                                height: implicitHeight
+                                width: implicitWidth
+
                                 background: Rectangle {
                                     radius: 6
                                     color: ThemePkg.Theme.surface(0.06)
                                     border.color: panelBorder
                                 }
                                 contentItem: Text {
-                                    text: parent.Button.text
+                                    text: actionBtn.text
                                     color: primary
                                     font.pixelSize: 12
                                     font.family: "Fira Sans Semibold"
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                     elide: Text.ElideRight
-                                    padding: 6
+                                    maximumLineCount: 1
                                 }
+
                                 onClicked: { if (modelData && modelData.invoke) modelData.invoke() }
                             }
                         }
                     }
+                    // ======= FINE AZIONI =======
                 }
 
                 implicitHeight: contentCol.implicitHeight + 16
@@ -553,7 +607,6 @@ Item {
         anchors.fill: parent
         radius: width / 2
         antialiasing: true
-        // Sfondo = stesso della finestra/pannello
         color: ThemePkg.Theme.background
         border.width: hovered ? 1.5 : 1
         border.color: hovered
@@ -561,7 +614,6 @@ Item {
             : ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
     }
 
-    // X vettoriale, sempre perfettamente centrata
     Shape {
         anchors.centerIn: parent
         width: parent.width
@@ -604,7 +656,6 @@ Item {
 
             }
 
-            // Placeholder quando non ci sono notifiche
             Rectangle {
                 anchors.fill: parent
                 color: "transparent"

@@ -1,13 +1,13 @@
 // modules/overlays/VolumeOverlay.qml
 // OSD volume verticale centrato a destra.
-// Pillola stretta con bordo, vuoto grigio (#cccccc) e riempimento azzurro (#4a9eff).
-// Bubble senza icona, perfettamente sincronizzata con il fill.
+// Usa il tema centralizzato (ThemePkg.Theme): background/surface/accent/bordi tenui.
 
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.Pipewire
 import Quickshell.Widgets   // Scope, LazyLoader, Region
+import "../theme" as ThemePkg
 
 Scope {
     id: root
@@ -33,7 +33,6 @@ Scope {
 
         PanelWindow {
             id: win
-            // Finestrella overlay a DESTRA, tutta altezza; centriamo il contenuto dentro.
             anchors.right: true
             anchors.top: true
             anchors.bottom: true
@@ -50,13 +49,13 @@ Scope {
             readonly property bool muted:   Pipewire.defaultAudioSink?.audio.mute ?? false
             readonly property real volFrac: Math.max(0, Math.min(1, muted ? 0 : volRaw))
 
-            // Palette coerente
-            readonly property color bgColor:      "#222222"
-            readonly property color bgBorder:     "#555555"
-            readonly property color emptyColor:   "#cccccc"  // grigio repo
-            readonly property color fillColor:    "#4a9eff"  // azzurro barra
-            readonly property color bubbleBg:     "#1a1a1a"
-            readonly property color bubbleBorder: "#555555"
+            // Palette dal tema
+            readonly property color bgColor:      ThemePkg.Theme.surface(0.10)
+            readonly property color bgBorder:     ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.16)
+            readonly property color emptyColor:   ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.22)
+            readonly property color fillColor:    ThemePkg.Theme.accent
+            readonly property color bubbleBg:     ThemePkg.Theme.background
+            readonly property color bubbleBorder: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.16)
 
             // ---- Pillola centrata verticalmente nella finestra a piena altezza ----
             Rectangle {
@@ -67,10 +66,11 @@ Scope {
                 color: win.bgColor
                 border.color: win.bgBorder
                 border.width: 1
+                antialiasing: true
 
                 anchors.right: parent.right
                 anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter  // << centro reale
+                anchors.verticalCenter: parent.verticalCenter
 
                 // Barra interna
                 Item {
@@ -85,7 +85,7 @@ Scope {
                     }
                     width: 8
 
-                    // Parte "vuota" (sopra) grigia
+                    // Parte "vuota" (sopra)
                     Rectangle {
                         id: empty
                         anchors { top: parent.top; left: parent.left; right: parent.right }
@@ -98,7 +98,7 @@ Scope {
                         Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.InOutQuad } }
                     }
 
-                    // Riempimento azzurro (sotto)
+                    // Riempimento (sotto)
                     Rectangle {
                         id: fill
                         anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
@@ -111,7 +111,7 @@ Scope {
                         Behavior on height { NumberAnimation { duration: 90; easing.type: Easing.InOutQuad } }
                     }
 
-                    // Bubble: segue esattamente il bordo tra empty e fill (niente Behavior separato)
+                    // Bubble: segue il bordo tra empty e fill
                     Rectangle {
                         id: bubble
                         width: 16; height: 16

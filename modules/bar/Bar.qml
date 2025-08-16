@@ -9,7 +9,7 @@ import "widgets/"
 import org.kde.layershell 1.0
 import Quickshell.Io
 import "../theme" as ThemePkg
-
+import Quickshell.Services.UPower    // <-- aggiunto per batteria
 
 
 // Create a proper panel window
@@ -404,8 +404,6 @@ Variants {
                         Hyprland.dispatch("exec " + cmd);
                     }
 
-
-                    // Quickshell.Io.Process: usa onExited per leggere exitCode
                     Process {
                         id: autolockStatusProc
                         command: ["bash", "-lc", autolockStatusCmd]
@@ -520,9 +518,9 @@ Variants {
                                         onEntered: parent.hovered = true
                                         onExited:  parent.hovered = false
                                         onClicked: {
-                                            runScript(toggleAutolockScript, "toggle")  // usa il tuo script con argomento
-                                            switcher.autolockDisabled = !switcher.autolockDisabled  // feedback immediato (se hai già spostato lo stato in switcher)
-                                            autolockRecheck.start()  // riallinea con lo stato reale (pgrep)
+                                            runScript(toggleAutolockScript, "toggle")
+                                            switcher.autolockDisabled = !switcher.autolockDisabled
+                                            autolockRecheck.start()
                                         }
                                     }
                                     ToolTip.visible: maLock.containsMouse
@@ -681,7 +679,7 @@ Variants {
                         }
                     }
 
-                    // Right Sidebar Button
+                    // Right Sidebar Button (Connessioni) — spostato a destra del tasto batteria
                     Rectangle {
                         id: rightsidebarButton
                         width: 70 * panel.scaleFactor
@@ -690,7 +688,12 @@ Variants {
                         color: moduleColor
                         border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
-                        anchors { right: logoutButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
+                        anchors {
+                            right: batteryButton.visible ? batteryButton.left : logoutButton.left
+                            verticalCenter: parent.verticalCenter
+                            rightMargin: 8 * panel.scaleFactor
+                        }
+
 
                         property string networkIcon: ""
                         property string volumeIcon: ""
@@ -731,6 +734,76 @@ Variants {
                         }
 
                         Component.onCompleted: { nmcliProcess.exec(nmcliProcess.command); updateVolumeIcon() }
+                    }
+
+                    // === Nuovo: Tasto Batteria tra Power e Connessioni ===
+                    Rectangle {
+                        id: batteryButton
+                        width: visible ? 35 * panel.scaleFactor : 0
+                        height: 30 * panel.scaleFactor
+                        radius: 10 * panel.scaleFactor
+                        color: moduleColor
+                        border.color: moduleBorderColor
+                        border.width: visible ? 1 * panel.scaleFactor : 0
+                        anchors { right: logoutButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
+
+                        // Mostra solo se c'è una batteria laptop presente e pronta
+                        visible: UPower.displayDevice.ready
+                                 && UPower.displayDevice.isLaptopBattery
+                                 && UPower.displayDevice.isPresent
+
+                        // Stato batteria
+                        property var dev: UPower.displayDevice
+                        property int pct: Math.round(dev.percentage || 0)
+                        property bool charging: dev.state === UPowerDeviceState.Charging || dev.state === UPowerDeviceState.PendingCharge
+                        property bool discharging: dev.state === UPowerDeviceState.Discharging || dev.state === UPowerDeviceState.PendingDischarge
+                        function glyphFor(p) {
+                            if (p >= 95) return "";    // full
+                            if (p >= 75) return "";
+                            if (p >= 55) return "";
+                            if (p >= 35) return "";
+                            return "";                 // low
+                        }
+                        function fmtTime(sec) {
+                            if (!sec || sec <= 0) return "";
+                            var h = Math.floor(sec / 3600);
+                            var m = Math.floor((sec % 3600) / 60);
+                            return h + " h " + (m < 10 ? "0" + m : m) + " min";
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: batteryButton.charging
+                                  ? ""               // fulmine quando in carica
+                                  : batteryButton.glyphFor(batteryButton.pct)
+                            color: (!batteryButton.charging && batteryButton.pct <= 15)
+                                   ? ThemePkg.Theme.danger
+                                   : moduleFontColor
+                            font.pixelSize: 16 * panel.scaleFactor
+                            font.family: "CaskaydiaMono Nerd Font"
+                        }
+
+                        MouseArea {
+                            id: maBatt
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            // (click azione non richiesta - lasciato vuoto per futura espansione)
+                        }
+
+                        ToolTip.visible: maBatt.containsMouse
+                        ToolTip.delay: 250
+                        ToolTip.text: {
+                            const t = batteryButton.charging ? batteryButton.dev.timeToFull : batteryButton.dev.timeToEmpty;
+                            const tStr = batteryButton.fmtTime(t);
+                            if (batteryButton.charging) {
+                                return tStr ? ("Carica completa tra " + tStr + " (" + batteryButton.pct + "%)") : ("In carica (" + batteryButton.pct + "%)");
+                            } else if (batteryButton.discharging) {
+                                return tStr ? (tStr + " rimanenti (" + batteryButton.pct + "%)") : ("Batteria " + batteryButton.pct + "%");
+                            } else {
+                                return "Batteria " + batteryButton.pct + "%";
+                            }
+                        }
                     }
 
                     // Power
@@ -847,4 +920,3 @@ Variants {
         }
     }
 }
-

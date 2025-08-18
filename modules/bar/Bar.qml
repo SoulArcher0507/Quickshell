@@ -1051,10 +1051,14 @@ Variants {
                         Component.onCompleted: { nmcliProcess.exec(nmcliProcess.command); updateVolumeIcon() }
                     }
 
-                    // === Nuovo: Tasto Batteria tra Power e Connessioni ===
+                    // === Batteria (fix percentuale + testo %) ===
                     Rectangle {
                         id: batteryButton
-                        width: visible ? 35 * panel.scaleFactor : 0
+                        // larghezza dinamica: padding orizzontale + contenuto (icona + "%")
+                        property real hpad: 10 * panel.scaleFactor
+                        implicitWidth: contentRow.implicitWidth + hpad * 2
+                        width: visible ? implicitWidth : 0
+
                         height: 30 * panel.scaleFactor
                         radius: 10 * panel.scaleFactor
                         color: moduleColor
@@ -1062,22 +1066,42 @@ Variants {
                         border.width: visible ? 1 * panel.scaleFactor : 0
                         anchors { right: logoutButton.left; verticalCenter: parent.verticalCenter; rightMargin: 8 * panel.scaleFactor }
 
-                        // Mostra solo se c'è una batteria laptop presente e pronta
                         visible: UPower.displayDevice.ready
-                                 && UPower.displayDevice.isLaptopBattery
-                                 && UPower.displayDevice.isPresent
+                                && UPower.displayDevice.isLaptopBattery
+                                && UPower.displayDevice.isPresent
 
-                        // Stato batteria
+                        // === Stato ===
                         property var dev: UPower.displayDevice
-                        property int pct: Math.round(dev.percentage || 0)
-                        property bool charging: dev.state === UPowerDeviceState.Charging || dev.state === UPowerDeviceState.PendingCharge
+                        property int  pctOverride: -1       // % da /sys o upower -i
+                        property int  tteOverride: -1       // sec
+                        property int  ttfOverride: -1       // sec
+
+                        // Anti-flicker tooltip state
+                        property bool _hovered: false
+                        property bool _tipVisible: false
+                        Timer { id: _tipShow; interval: 250; repeat: false; onTriggered: if (batteryButton._hovered) batteryButton._tipVisible = true }
+                        Timer { id: _tipHide; interval: 160; repeat: false; onTriggered: if (!batteryButton._hovered) batteryButton._tipVisible = false }
+
+                        // % da mostrare: se ho override -> uso quello; altrimenti prendo (eventuale) valore di UPower
+                        property int shownPct: {
+                            if (batteryButton.pctOverride >= 0) return batteryButton.pctOverride;
+                            var p = Number(batteryButton.dev.percentage);
+                            return (!isNaN(p) && p >= 0 && p <= 100) ? Math.round(p) : 0;
+                        }
+
+                        // Tempi (UPower con fallback)
+                        property int tte: (dev.timeToEmpty && dev.timeToEmpty > 0) ? dev.timeToEmpty : (tteOverride >= 0 ? tteOverride : 0)
+                        property int ttf: (dev.timeToFull  && dev.timeToFull  > 0) ? dev.timeToFull  : (ttfOverride >= 0 ? ttfOverride : 0)
+
+                        property bool charging:    dev.state === UPowerDeviceState.Charging || dev.state === UPowerDeviceState.PendingCharge
                         property bool discharging: dev.state === UPowerDeviceState.Discharging || dev.state === UPowerDeviceState.PendingDischarge
+
                         function glyphFor(p) {
-                            if (p >= 95) return "";    // full
+                            if (p >= 95) return "";
                             if (p >= 75) return "";
                             if (p >= 55) return "";
                             if (p >= 35) return "";
-                            return "";                 // low
+                            return "";
                         }
                         function fmtTime(sec) {
                             if (!sec || sec <= 0) return "";
@@ -1086,16 +1110,27 @@ Variants {
                             return h + " h " + (m < 10 ? "0" + m : m) + " min";
                         }
 
-                        Text {
+                        // === UI: icona + percentuale ===
+                        Row {
+                            id: contentRow
                             anchors.centerIn: parent
-                            text: batteryButton.charging
-                                  ? ""               // fulmine quando in carica
-                                  : batteryButton.glyphFor(batteryButton.pct)
-                            color: (!batteryButton.charging && batteryButton.pct <= 15)
-                                   ? ThemePkg.Theme.danger
-                                   : moduleFontColor
-                            font.pixelSize: 16 * panel.scaleFactor
-                            font.family: "CaskaydiaMono Nerd Font"
+                            spacing: 6 * panel.scaleFactor
+                            property bool low: (!batteryButton.charging && batteryButton.shownPct <= 15)
+
+                            // icona batteria o fulmine se in carica
+                            Text {
+                                text: batteryButton.charging ? "" : batteryButton.glyphFor(batteryButton.shownPct)
+                                color: contentRow.low ? ThemePkg.Theme.danger : moduleFontColor
+                                font.pixelSize: 16 * panel.scaleFactor
+                                font.family: "CaskaydiaMono Nerd Font"
+                            }
+                            // percentuale
+                            Text {
+                                text: batteryButton.shownPct + "%"
+                                color: contentRow.low ? ThemePkg.Theme.danger : moduleFontColor
+                                font.pixelSize: 14 * panel.scaleFactor
+                                font.family: "Fira Sans Semibold"
+                            }
                         }
 
                         MouseArea {
@@ -1103,22 +1138,90 @@ Variants {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
+                            onEntered: { batteryButton._hovered = true;  _tipHide.stop(); _tipShow.start(); }
+                            onExited:  { batteryButton._hovered = false; _tipShow.stop(); _tipHide.start(); }
                         }
 
-                        ToolTip.visible: maBatt.containsMouse
-                        ToolTip.delay: 250
+                        ToolTip.visible: batteryButton._tipVisible
+                        ToolTip.delay: 0   // gestiamo noi il delay con _tipShow/_tipHide
                         ToolTip.text: {
-                            const t = batteryButton.charging ? batteryButton.dev.timeToFull : batteryButton.dev.timeToEmpty;
+                            const t = batteryButton.charging ? batteryButton.ttf : batteryButton.tte;
                             const tStr = batteryButton.fmtTime(t);
                             if (batteryButton.charging) {
-                                return tStr ? ("Carica completa tra " + tStr + " (" + batteryButton.pct + "%)") : ("In carica (" + batteryButton.pct + "%)");
+                                return tStr ? ("Carica completa tra " + tStr + " (" + batteryButton.shownPct + "%)") : ("In carica (" + batteryButton.shownPct + "%)");
                             } else if (batteryButton.discharging) {
-                                return tStr ? (tStr + " rimanenti (" + batteryButton.pct + "%)") : ("Batteria " + batteryButton.pct + "%");
+                                return tStr ? (tStr + " rimanenti (" + batteryButton.shownPct + "%)") : ("Batteria " + batteryButton.shownPct + "%");
                             } else {
-                                return "Batteria " + batteryButton.pct + "%";
+                                return "Batteria " + batteryButton.shownPct + "%";
                             }
                         }
+
+                        // === Lettura percentuale: /sys (capacity o now/full), poi upower -i ===
+                        property string _pctCmd:
+                            "for d in /sys/class/power_supply/*; do " +
+                            "  [ -f \"$d/type\" ] || continue; " +
+                            "  if grep -qi battery \"$d/type\"; then " +
+                            "    if [ -r \"$d/capacity\" ]; then cat \"$d/capacity\"; exit 0; fi; " +
+                            "    if [ -r \"$d/charge_now\" ] && [ -r \"$d/charge_full\" ]; then " +
+                            "      awk 'BEGIN{now=$(<\"" + "\\$d" + "/charge_now\"); full=$(<\"" + "\\$d" + "/charge_full\"); if (full>0) printf \"%d\\n\", (now*100)/full}'; exit 0; fi; " +
+                            "    if [ -r \"$d/energy_now\" ] && [ -r \"$d/energy_full\" ]; then " +
+                            "      awk 'BEGIN{now=$(<\"" + "\\$d" + "/energy_now\"); full=$(<\"" + "\\$d" + "/energy_full\"); if (full>0) printf \"%d\\n\", (now*100)/full}'; exit 0; fi; " +
+                            "  fi; " +
+                            "done; " +
+                            "dev=$(upower -e | grep -m1 battery || true); " +
+                            "[ -n \"$dev\" ] && upower -i \"$dev\" | awk -F: '/percentage/ {gsub(/%/,\"\",$2); gsub(/^ +/,\"\",$2); print int($2)}'"
+
+                        property string _tteCmd:
+                            "dev=$(upower -e | grep -m1 battery || true); " +
+                            "[ -n \"$dev\" ] && upower -i \"$dev\" | awk -F: '/time to empty/ {gsub(/^ +/,\"\",$2); v=$2; split(v,a,\" \"); x=a[1]; gsub(/,/,\".\",x); if (v ~ /hour/) print int(x*3600); else if (v ~ /minute/) print int(x*60); }'"
+
+                        property string _ttfCmd:
+                            "dev=$(upower -e | grep -m1 battery || true); " +
+                            "[ -n \"$dev\" ] && upower -i \"$dev\" | awk -F: '/time to full/ {gsub(/^ +/,\"\",$2); v=$2; split(v,a,\" \"); x=a[1]; gsub(/,/,\".\",x); if (v ~ /hour/) print int(x*3600); else if (v ~ /minute/) print int(x*60); }'"
+
+                        Process {
+                            id: batPctProc
+                            command: ["bash","-lc", batteryButton._pctCmd]
+                            stdout: StdioCollector { id: batPctOut; waitForEnd: true }
+                            onExited: {
+                                var s = (batPctOut.text || "").trim();
+                                var n = parseInt(s);
+                                if (!isNaN(n) && n >= 0 && n <= 100) batteryButton.pctOverride = n;
+                            }
+                        }
+                        Process {
+                            id: batTteProc
+                            command: ["bash","-lc", batteryButton._tteCmd]
+                            stdout: StdioCollector { id: batTteOut; waitForEnd: true }
+                            onExited: {
+                                var s = (batTteOut.text || "").trim();
+                                var n = parseInt(s);
+                                if (!isNaN(n) && n > 0) batteryButton.tteOverride = n;
+                            }
+                        }
+                        Process {
+                            id: batTtfProc
+                            command: ["bash","-lc", batteryButton._ttfCmd]
+                            stdout: StdioCollector { id: batTtfOut; waitForEnd: true }
+                            onExited: {
+                                var s = (batTtfOut.text || "").trim();
+                                var n = parseInt(s);
+                                if (!isNaN(n) && n > 0) batteryButton.ttfOverride = n;
+                            }
+                        }
+
+                        // Poll
+                        Timer { interval: 20000; running: true; repeat: true; onTriggered: batPctProc.exec(["bash","-lc", batteryButton._pctCmd]) }
+                        Timer { interval: 60000; running: true; repeat: true; onTriggered: { batTteProc.exec(["bash","-lc", batteryButton._tteCmd]); batTtfProc.exec(["bash","-lc", batteryButton._ttfCmd]); } }
+
+                        Component.onCompleted: {
+                            batPctProc.exec(["bash","-lc", batteryButton._pctCmd]);
+                            batTteProc.exec(["bash","-lc", batteryButton._tteCmd]);
+                            batTtfProc.exec(["bash","-lc", batteryButton._ttfCmd]);
+                        }
                     }
+
+
 
                     // Power
                     Rectangle {

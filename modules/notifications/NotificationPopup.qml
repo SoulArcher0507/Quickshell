@@ -6,18 +6,34 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications as NS
 import Quickshell.Hyprland
+import Quickshell.Wayland
+import "../theme" as ThemePkg    // <— come gli altri moduli; cambia il path se serve
 
-// Popup notifica stile "toast", solo su monitor attivo
 Scope {
     id: root
 
-    // *** Usa il server condiviso ***
     required property var server
 
-    // === modello reattivo dei toast (niente array JS) ===
+    // ======= COLORI TEMA (con fallback sicuri) =======
+    readonly property bool hasTheme:
+        !!ThemePkg && !!ThemePkg.Theme
+        && (typeof ThemePkg.Theme.surface === "function")
+        && (typeof ThemePkg.Theme.mix === "function")
+        && (typeof ThemePkg.Theme.withAlpha === "function")
+
+    // stessi nomi della Bar
+    readonly property color moduleColor:       hasTheme ? ThemePkg.Theme.surface(0.10) : "#2b2b2b"
+    readonly property color moduleBorderColor: hasTheme ? ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35) : "#505050"
+    readonly property color moduleFontColor:   hasTheme ? ThemePkg.Theme.accent : "#4a9eff"
+    readonly property color textColor:         hasTheme ? ThemePkg.Theme.foreground : "#f3f3f3"
+    readonly property color subTextColor:      hasTheme ? ThemePkg.Theme.withAlpha(textColor, 0.90) : "#e6e6e6"
+    readonly property color hoverFill:         hasTheme ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08) : "#3a3a3a"
+    readonly property color criticalColor:     hasTheme ? ThemePkg.Theme.danger : "#ff5252"
+    readonly property int   corner:            10
+
     ListModel { id: toastModel }
 
-    // --- monitor attivo ---
+    // --- monitor attivo (come prima) ---
     property var activeScreen: null
     function computeActiveScreen() {
         const fm = Hyprland.focusedMonitor
@@ -31,18 +47,15 @@ Scope {
         return screens[0]
     }
     Component.onCompleted: activeScreen = computeActiveScreen()
-    Connections {
-        target: Hyprland
-        ignoreUnknownSignals: true
-        function onFocusedMonitorChanged() { root.activeScreen = root.computeActiveScreen() }
-    }
+    Connections { target: Hyprland; ignoreUnknownSignals: true
+        function onFocusedMonitorChanged() { root.activeScreen = root.computeActiveScreen() } }
+    Connections { target: Quickshell; ignoreUnknownSignals: true
+        function onScreensChanged() { root.activeScreen = root.computeActiveScreen() } }
 
-    // --- hook robusti: tutte le signature note + fallback su tracked ---
+    // --- add/remove toast (come prima) ---
     function addToast(n) {
         if (!n) return
-        // prova a mantenerla viva, senza rompere su build readonly
         try { n.tracked = true } catch(e) {}
-        // evita duplicati
         for (let i = 0; i < toastModel.count; ++i)
             if (toastModel.get(i).notif === n) return
         toastModel.append({ notif: n })
@@ -52,20 +65,16 @@ Scope {
             if (toastModel.get(i).notif === n) { toastModel.remove(i); return }
     }
 
-    Connections {
-        target: server
-        ignoreUnknownSignals: true
-        function onNotification(n)      { addToast(n) }      // alcune build
-        function onNotificationAdded(n) { addToast(n) }      // altre build
-    }
-    Connections {
-        target: server && server.trackedNotifications ? server.trackedNotifications : null
-        ignoreUnknownSignals: true
-        function onValueAdded(key, value) { addToast(value) }
-        function onAdded(key, value)      { addToast(value) }
-    }
+    Connections { target: server; ignoreUnknownSignals: true
+        function onNotification(n) { addToast(n) } }
+    Connections { target: server.trackedNotifications; ignoreUnknownSignals: true
+        function onObjectInsertedPost(object, index) { addToast(object) }
+        function onObjectRemovedPost(object, index)  { removeToast(object) }
+        function onValueAdded(key, value)   { addToast(value) }
+        function onValueRemoved(key, value) { removeToast(value) }
+        function onAdded(key, value)        { addToast(value) }
+        function onRemoved(key, value)      { removeToast(value) } }
 
-    // === finestra sempre istanziata (niente race), visibile solo quando serve ===
     PanelWindow {
         id: win
         anchors.top: true
@@ -75,56 +84,88 @@ Scope {
         exclusiveZone: 0
         color: "transparent"
         aboveWindows: true
+        WlrLayershell.layer: WlrLayer.Overlay
+
         screen: root.activeScreen ?? (Quickshell.screens && Quickshell.screens.length ? Quickshell.screens[0] : null)
         visible: toastModel.count > 0
 
         implicitWidth: 420
         implicitHeight: column.implicitHeight
+        height: column.implicitHeight
 
-        // Colonna di toast
         Column {
             id: column
             anchors.right: parent.right
             spacing: 10
 
             Repeater {
-                id: toastRepeater
                 model: toastModel
-                delegate: Toast { n: notif; width: 380 } // ruolo diretto del ListModel
+                delegate: Toast { n: notif; width: 380 }
             }
         }
 
-        // --- Componente "Toast" singolo ---
+        // ===== Toast =====
         component Toast: Rectangle {
             id: toast
             property var n: null
 
-            radius: 12
-            color: "#222222cc"
-            border.color: "#00000040"
+            radius: corner
+            color: moduleColor
+            border.color: root.moduleBorderColor
             border.width: 1
             width: 380
+            implicitHeight: content.implicitHeight + 24
 
-            // Entrata/uscita morbida
+            // Animazioni
             opacity: 0.0; y: 8
             Behavior on opacity { NumberAnimation { duration: 140 } }
             Behavior on y       { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
             Component.onCompleted: { opacity = 1.0; y = 0 }
 
-            // Mouse: pausa timer e click = dismiss
+            // Hover + click
+            property bool hovered: false
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                onEntered:  autoClose.running = false
-                onExited:   autoClose.running = !!(toast.n) && !(toast.n.resident === true) && (toast.n.expireTimeout !== 0)
-                onClicked:  { if (toast.n && typeof toast.n.dismiss === "function") toast.n.dismiss() }
-            }
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
 
-            // Auto-close (expireTimeout è in secondi)
+                // se il click cade dentro reply/azioni, lascia passare l'evento al controllo
+                function insideInteractive(mouse) {
+                    function within(item) {
+                        if (!item || !item.visible) return false;
+                        var p = item.mapFromItem(toast, mouse.x, mouse.y)
+                        return p.x >= 0 && p.y >= 0 && p.x <= item.width && p.y <= item.height
+                    }
+                    return within(replyRow) || within(actionsFlow)
+                }
+
+                onPressed: {
+                    if (insideInteractive(mouse)) {
+                        mouse.accepted = false;    // lascia il click al TextField/Buttons
+                        return;
+                    }
+                    autoClose.running = false;
+                    toast.hovered = true;
+                }
+
+                onReleased: {
+                    toast.hovered = false;
+                    autoClose.running = !!toast.n && (toast.n.expireTimeout !== 0);
+                }
+
+                onClicked: {
+                    if (insideInteractive(mouse)) return;
+                    if (toast.n && typeof toast.n.dismiss === "function") toast.n.dismiss();
+                }
+            }
+            Behavior on border.color { ColorAnimation { duration: 120 } }
+            border.color: hovered ? root.moduleFontColor : root.moduleBorderColor
+
+            // Auto-close
             Timer {
                 id: autoClose
                 repeat: false
-                running: !!(toast.n) && !(toast.n.resident === true) && (toast.n.expireTimeout !== 0)
+                running: !!toast.n && (toast.n.expireTimeout !== 0)
                 interval: (toast.n && typeof toast.n.expireTimeout === "number"
                            ? (toast.n.expireTimeout > 0 ? toast.n.expireTimeout * 1000 : 5000)
                            : 5000)
@@ -132,7 +173,10 @@ Scope {
             }
 
             ColumnLayout {
-                anchors.fill: parent
+                id: content
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.margins: 12
                 spacing: 8
 
@@ -145,15 +189,12 @@ Scope {
                         Layout.preferredWidth: 28
                         Layout.preferredHeight: 28
 
-                        // 1) Immagine "ricca"
                         IconImage {
                             id: richImage
                             anchors.fill: parent
                             source: (toast.n && toast.n.image) ? toast.n.image : ""
                             visible: source.length > 0
                         }
-
-                        // 2) Fallback: icona di tema
                         QQC2.Button {
                             anchors.fill: parent
                             visible: (!richImage.visible) && !!(toast.n && toast.n.appIcon && toast.n.appIcon.length)
@@ -169,20 +210,22 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
 
+                        // Titolo in accent come la barra
                         Text {
                             text: (toast.n ? (toast.n.summary || toast.n.appName) : "")
-                            color: "#ffffff"
+                            color: root.moduleFontColor
                             font.bold: true
                             font.pixelSize: 14
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
 
+                        // Corpo in foreground attenuato
                         Text {
                             text: (toast.n && toast.n.body) ? toast.n.body : ""
                             textFormat: Text.RichText
                             wrapMode: Text.Wrap
-                            color: "#dddddd"
+                            color: root.subTextColor
                             font.pixelSize: 12
                             maximumLineCount: 6
                             elide: Text.ElideRight
@@ -190,20 +233,22 @@ Scope {
                         }
                     }
 
-                    // Indicatore urgenza
+                    // Pallino urgenza tematizzato
                     Rectangle {
                         Layout.preferredWidth: 8
                         Layout.preferredHeight: 8
                         radius: 4
                         color: (toast.n
-                            ? (toast.n.urgency === NS.NotificationUrgency.Critical ? "#ff5252"
-                               : (toast.n.urgency === NS.NotificationUrgency.Low ? "#7cb342" : "#4a9eff"))
-                            : "#4a9eff")
+                            ? (toast.n.urgency === NS.NotificationUrgency.Critical ? root.criticalColor
+                               : (toast.n.urgency === NS.NotificationUrgency.Low
+                                  ? ThemePkg && ThemePkg.Theme ? ThemePkg.Theme.withAlpha(root.textColor, 0.55) : "#cccccc"
+                                  : root.moduleFontColor))
+                            : root.moduleFontColor)
                         Layout.alignment: Qt.AlignTop
                     }
                 }
 
-                // Azioni (se presenti)
+                // Azioni (se presenti) — FIX: testo visibile e dimensioni decenti
                 Flow {
                     id: actionsFlow
                     Layout.fillWidth: true
@@ -213,13 +258,44 @@ Scope {
                     Repeater {
                         model: (toast.n && toast.n.actions) ? toast.n.actions : []
                         delegate: QQC2.Button {
+                            id: actionBtn
                             required property var modelData
-                            text: modelData.text
-                            icon.name: (toast.n && toast.n.hasActionIcons) ? modelData.identifier : ""
-                            onClicked: modelData.invoke()
+
+                            // Etichetta robusta (copre text/label/title)
+                            property string label: (modelData && (modelData.text || modelData.label || modelData.title || ""))
+
+                            text: label
+                            hoverEnabled: true
+
+                            // NIENTE più pillole: padding e min-size
+                            leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
+                            implicitHeight: Math.max(28, actionText.implicitHeight + topPadding + bottomPadding)
+                            implicitWidth:  Math.max(88, actionText.implicitWidth  + leftPadding + rightPadding)
+
+                            background: Rectangle {
+                                radius: corner
+                                color: actionBtn.hovered ? hoverFill : (hasTheme ? ThemePkg.Theme.surface(0.06) : "#353535")
+                                border.color: moduleBorderColor
+                                border.width: 1
+                            }
+
+                            // Contenuto semplice: solo testo (gli eventuali icon set restano gestiti dal label stesso)
+                            contentItem: Text {
+                                id: actionText
+                                text: actionBtn.text
+                                color: moduleFontColor
+                                font.pixelSize: 12
+                                verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+                            }
+
+                            onClicked: if (modelData && typeof modelData.invoke === "function") modelData.invoke()
                         }
                     }
                 }
+
+
 
                 // Inline reply (se supportata)
                 RowLayout {
@@ -231,35 +307,51 @@ Scope {
                         id: replyField
                         Layout.fillWidth: true
                         placeholderText: (toast.n && toast.n.inlineReplyPlaceholder) ? toast.n.inlineReplyPlaceholder : "Rispondi…"
+                        color: root.textColor
+                        background: Rectangle {
+                            radius: corner
+                            color: hasTheme ? ThemePkg.Theme.surface(0.06) : "#353535"
+                            border.color: root.moduleBorderColor
+                            border.width: 1
+                        }
                         onAccepted: sendBtn.clicked()
                     }
                     QQC2.Button {
                         id: sendBtn
                         text: "Invia"
-                        enabled: replyField.text.length > 0
+                        hoverEnabled: true
+                        padding: 8
+                        background: Rectangle {
+                            radius: corner
+                            color: control.hovered ? root.hoverFill : (hasTheme ? ThemePkg.Theme.surface(0.06) : "#353535")
+                            border.color: root.moduleBorderColor
+                            border.width: 1
+                        }
+                        contentItem: Text {
+                            text: sendBtn.text
+                            color: root.moduleFontColor
+                            font.pixelSize: 12
+                            verticalAlignment: Text.AlignVCenter
+                            horizontalAlignment: Text.AlignHCenter
+                        }
                         onClicked: {
                             if (toast.n) {
                                 toast.n.sendInlineReply(replyField.text);
                                 replyField.clear();
-                                if (!toast.n.resident) toast.n.dismiss();
+                                toast.n.dismiss();
                             }
                         }
                     }
                 }
             }
 
-            // Uscita quando il server la chiude + rimozione con piccola animazione
+            // cleanup come prima
             Connections {
-                target: toastModel // ascolta gli oggetti nel modello
+                target: toast.n
                 ignoreUnknownSignals: true
+                function onClosed(reason) { root.removeToast(toast.n) }
+                function onTrackedChanged() { if (toast.n && !toast.n.tracked) root.removeToast(toast.n) }
             }
-        }
-
-        // rimozione post fade
-        Timer {
-            id: removeLater
-            interval: 160; repeat: false
-            onTriggered: { /* gestito da onClosed nel delegate */ }
         }
     }
 }

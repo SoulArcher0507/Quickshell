@@ -14,4 +14,11 @@ elevate() {
   fi
 }
 
-elevate pacman -Syu --noconfirm --needed
+# If user uses yay/paru we can restrict to repo updates only; otherwise pacman
+if command -v yay >/dev/null 2>&1; then
+  yay  -Syu --repo --noconfirm --noeditmenu --nodiffmenu --cleanafter --removemake --answerclean All --answerdiff None
+elif command -v paru >/dev/null 2>&1; then
+  paru -Syu --repo --noconfirm --cleanafter --removemake --skipreview
+else
+  elevate pacman -Syu --noconfirm --needed
+fi

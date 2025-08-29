@@ -139,14 +139,61 @@ Item {
                     }
                 }
 
-                // ToolTip attachable
-                ToolTip.visible: trayMouseArea.containsMouse && trayItem.title.length > 0
-                ToolTip.text: trayItem.title
-                ToolTip.delay: 800
+                // --- Tooltip custom che non copre il mouse (FIX visibilità) ---
+                Item {
+                    id: hoverTip
+                    // ospite: contentItem della finestra, fallback al widget
+                    property var hostItem: QsWindow.window && QsWindow.window.contentItem
+                                           ? QsWindow.window.contentItem
+                                           : systemTrayWidget
+
+                    // disegna sopra tutto, non intercetta input
+                    z: 9999
+                    visible: trayMouseArea.containsMouse && trayItem.title && trayItem.title.length > 0
+                    parent: hostItem
+
+                    // offset per non coprire il cursore
+                    property int dx: Math.round(12 * systemTrayWidget.scaleFactor)
+                    property int dy: Math.round(18 * systemTrayWidget.scaleFactor)
+
+                    // punto del mouse rimappato nello spazio dell'host
+                    property var pt: trayMouseArea.mapToItem(hostItem, trayMouseArea.mouseX, trayMouseArea.mouseY)
+
+                    // padding e dimensioni
+                    property int pad: Math.round(6 * systemTrayWidget.scaleFactor)
+                    readonly property int tipW: tipText.implicitWidth + 2*pad
+                    readonly property int tipH: tipText.implicitHeight + 2*pad
+
+                    width: tipW
+                    height: tipH
+
+                    // clamp dentro l'host
+                    x: Math.min(Math.max(pt.x + dx, 0), hostItem.width  - width)
+                    y: Math.min(Math.max(pt.y + dy, 0), hostItem.height - height)
+
+                    // piccolo fade-in
+                    opacity: 1.0
+                    Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 6
+                        color: systemTrayWidget.backgroundPrimary
+                        border.width: 1
+                        border.color: systemTrayWidget.surfaceVariant
+                        opacity: 0.95
+
+                        Text {
+                            id: tipText
+                            anchors.centerIn: parent
+                            text: trayItem.title
+                            color: systemTrayWidget.textPrimary
+                            font.pixelSize: Math.round(12 * systemTrayWidget.scaleFactor)
+                            wrapMode: Text.NoWrap
+                        }
+                    }
+                }
             }
         }
     }
-
-    // Placeholder opzionale quando non ci sono item
-    // Text { ... }
 }

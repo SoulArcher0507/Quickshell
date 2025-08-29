@@ -99,23 +99,61 @@ Rectangle {
               return xhr.responseText !== null && xhr.responseText.length > 0 } catch (e) { return false }
     }
     function _guessIconFileFromName(name) {
-        const bases = [ "/usr/share/pixmaps/", "/usr/share/icons/hicolor/256x256/apps/",
-            "/usr/share/icons/hicolor/128x128/apps/","/usr/share/icons/hicolor/64x64/apps/",
-            "/usr/share/icons/hicolor/48x48/apps/","/usr/share/icons/hicolor/32x32/apps/",
-            "/usr/share/icons/hicolor/24x24/apps/","/usr/share/icons/hicolor/16x16/apps/",
-            "/usr/share/icons/hicolor/scalable/apps/" ]
-        const exts = [".png",".svg",".xpm"]
-        for (let b of bases) for (let e of exts) { let p = b + name + e; if (_fileExists(p)) return "file://" + p }
+        const home = Labs.StandardPaths.writableLocation(Labs.StandardPaths.HomeLocation)
+
+        const bases = [
+            // sistema
+            "/usr/share/icons/hicolor/256x256/apps/",
+            "/usr/share/icons/hicolor/128x128/apps/",
+            "/usr/share/icons/hicolor/64x64/apps/",
+            "/usr/share/icons/hicolor/48x48/apps/",
+            "/usr/share/icons/hicolor/32x32/apps/",
+            "/usr/share/icons/hicolor/24x24/apps/",
+            "/usr/share/icons/hicolor/16x16/apps/",
+            "/usr/share/icons/hicolor/scalable/apps/",
+            "/usr/share/pixmaps/",
+
+            // FLATPAK (exports globali e per-utente)
+            "/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/64x64/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/48x48/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/32x32/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/24x24/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/16x16/apps/",
+            "/var/lib/flatpak/exports/share/icons/hicolor/scalable/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/256x256/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/128x128/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/64x64/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/48x48/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/32x32/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/24x24/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/16x16/apps/",
+            home + "/.local/share/flatpak/exports/share/icons/hicolor/scalable/apps/"
+        ]
+        const exts = [".png", ".svg", ".xpm"]
+        for (let b of bases) for (let e of exts) {
+            let p = b + name + e
+            if (_fileExists(p)) return "file://" + p
+        }
         return ""
     }
+
     function _readDesktopIcon(desktopId) {
         if (!desktopId) return ""
         const home = Labs.StandardPaths.writableLocation(Labs.StandardPaths.HomeLocation)
+
         const appDirs = [
+            // sistema
             "/usr/share/applications/",
             "/usr/local/share/applications/",
-            home + "/.local/share/applications/"
+            home + "/.local/share/applications/",
+
+            // FLATPAK (exports globale e utente)
+            "/var/lib/flatpak/exports/share/applications/",
+            home + "/.local/share/flatpak/exports/share/applications/"
         ]
+
         for (let d of appDirs) {
             let f = d + (desktopId.endsWith(".desktop") ? desktopId : desktopId + ".desktop")
             if (_fileExists(f)) {
@@ -130,6 +168,11 @@ Rectangle {
         }
         return ""
     }
+    function _themeUrl(name) {
+        // Prova prima il provider "icon" (più comune), poi "theme"
+        return "image://icon/" + name
+    }
+
 
     function _iconSourceFor(n) {
         function pick(s){ return (s && typeof s === "string" && s.length > 0) ? s : "" }
@@ -138,12 +181,15 @@ Rectangle {
         const h = n.hints || {}
 
         // 1) Percorso esplicito (hints o payload)
-        const explicitPath = pick(h["image-path"]) || pick(n.image) || pick(n.appIcon)
+        const explicitPath = pick(h["image-path"]) || pick(h["app_icon"]) ||
+                            pick(h["image"]) || pick(n.image) || pick(n.appIcon)
         if (explicitPath) {
             const p = explicitPath
-            if (p.startsWith("file:") || p.startsWith("/")) return p.startsWith("file:") ? p : "file://" + p
-            return "image://theme/" + p
+            if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http"))
+                return p.startsWith("file:") || p.startsWith("http") ? p : "file://" + p
+            return _themeUrl(p)
         }
+
 
         // 2) Nome icona (hints o campi classici)
         const byName = pick(h["icon-name"]) || pick(n.appIconName) || pick(n.iconName)
@@ -160,9 +206,9 @@ Rectangle {
                 if (iconFromDesk.startsWith("file:") || iconFromDesk.startsWith("/"))
                     return iconFromDesk.startsWith("file:") ? iconFromDesk : "file://" + iconFromDesk
                 const g = _guessIconFileFromName(iconFromDesk)
-                return g || ("image://theme/" + iconFromDesk.replace(/\.desktop$/,""))
+                return g || _themeUrl(iconFromDesk.replace(/\.desktop$/,""))
             }
-            return "image://theme/" + desk.replace(/\.desktop$/,"")
+            return _themeUrl(desk.replace(/\.desktop$/,""))
         }
 
         // 4) fallback: prova a derivare dal nome app
@@ -170,7 +216,7 @@ Rectangle {
         if (appn) {
             const name = appn.replace(/\s+/g,"-").toLowerCase()
             const g = _guessIconFileFromName(name)
-            return g || ("image://theme/" + name)
+            return g || _themeUrl(name)
         }
 
         const pathish = pick(n && n.image) || pick(n && n.appIcon)
@@ -186,7 +232,7 @@ Rectangle {
 
 
         // 5) fallback definitivo
-        return "image://theme/dialog-information"
+        return _themeUrl("dialog-information")
     }
 
 
@@ -197,12 +243,12 @@ Rectangle {
 
         if (p.trackArtUrl && p.trackArtUrl.length>0) { _artCache[key] = p.trackArtUrl; return _artCache[key] }
         if (p.desktopEntry && p.desktopEntry.length>0) {
-            _artCache[key] = "image://theme/" + p.desktopEntry.replace(/\.desktop$/,""); return _artCache[key]
+            _artCache[key] = _themeUrl(p.desktopEntry.replace(/\.desktop$/,""))
         }
         if (p.identity && p.identity.length>0) {
-            _artCache[key] = "image://theme/" + p.identity.replace(/\s+/g,"-").toLowerCase(); return _artCache[key]
+            _artCache[key] = _themeUrl(p.identity.replace(/\s+/g,"-").toLowerCase())
         }
-        _artCache[key] = "image://theme/audio-x-generic"
+        _artCache[key] = _themeUrl("audio-x-generic")
         return _artCache[key]
     }
 
@@ -494,10 +540,19 @@ Rectangle {
                             // Se il provider tema non risolve, prova file reali o .desktop
                             onStatusChanged: {
                                 if (status === Image.Error) {
+                                    // prova l'altro provider di tema
+                                    if (source.startsWith("image://icon/")) {
+                                        source = source.replace("image://icon/", "image://theme/")
+                                        return
+                                    } else if (source.startsWith("image://theme/")) {
+                                        source = source.replace("image://theme/", "image://icon/")
+                                        return
+                                    }
+
+                                    // poi prova .desktop / nome / file come già fai
                                     const h = (modelData && modelData.hints) ? modelData.hints : {}
                                     const desk = (modelData && (modelData.desktopEntry || modelData.desktopId)) || h["desktop-entry"]
                                     let fallback = ""
-
                                     if (desk) {
                                         const dIcon = root._readDesktopIcon(desk)
                                         if (dIcon) {
@@ -510,9 +565,10 @@ Rectangle {
                                         const byName = (modelData && (modelData.appIconName || modelData.iconName)) || h["icon-name"] || ""
                                         fallback = root._guessIconFileFromName(byName)
                                     }
-                                    source = fallback || "image://theme/application-x-executable"
+                                    source = fallback || _themeUrl("application-x-executable")
                                 }
                             }
+
                         }
 
 

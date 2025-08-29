@@ -9,7 +9,9 @@ import "widgets/"
 import org.kde.layershell 1.0
 import Quickshell.Io
 import "../theme" as ThemePkg
-import Quickshell.Services.UPower    // <-- aggiunto per batteria
+import Quickshell.Services.UPower   
+import QtQuick.Layouts 1.15
+
 
 
 // Create a proper panel window
@@ -55,6 +57,17 @@ Variants {
                     z: 1
                     focus: overlayWindow.visible
 
+                    // ===== Cache aggiornamenti (persistente finché Quickshell è aperto) =====
+                    property int    updPacman: panel.updPacman
+                    property int    updAur: panel.updAur
+                    property int    updFlatpak: panel.updFlatpak
+                    property int    updTotal: panel.updTotal
+                    property string updLastTs: panel.updLastTs
+                    property var    _updLastMs: panel._updLastMs              // ms epoch dell’ultimo check
+                    property int    updatesMinIntervalMs: panel.updatesMinIntervalMs
+
+
+
                     // "", "connection", "notifications", "power", "arch"
                     property string shownOverlay: ""
                     property int    dur: 140
@@ -89,7 +102,7 @@ Variants {
                         repeat: false
                         onTriggered: autolockStatusProc.exec(["bash","-lc", switcher.autolockStatusCmd])
                     }
-                    Component.onCompleted: autolockStatusProc.exec(["bash","-lc", switcher.autolockStatusCmd])
+                    
 
                     Timer {
                         id: finalizeClose
@@ -396,6 +409,12 @@ Variants {
                     property string updatePacmanScript:   "$HOME/.config/hypr/scripts/update-pacman.sh"
                     property string updateAurScript:      "$HOME/.config/hypr/scripts/update-aur.sh"       // yay/AUR
                     property string updateFlatpakScript:  "$HOME/.config/hypr/scripts/update-flatpak.sh"
+                    // Listing scripts (for right-click popup)
+                    property string updatesListAllScript:     "$HOME/.config/hypr/scripts/updates-list-all.sh"
+                    property string updatesListPacmanScript:  "$HOME/.config/hypr/scripts/updates-list-pacman.sh"
+                    property string updatesListAurScript:     "$HOME/.config/hypr/scripts/updates-list-aur.sh"
+                    property string updatesListFlatpakScript: "$HOME/.config/hypr/scripts/updates-list-flatpak.sh"
+
 
                     // Check real Hypridle status: exit 0 => running (autolock ON), non-zero => not running (autolock OFF)
                     property string autolockStatusCmd: "pgrep -x hypridle"
@@ -405,17 +424,64 @@ Variants {
                     property bool autolockDisabled: false
 
                     // === Stato aggiornamenti ===
-                    property int updPacman: 0
-                    property int updAur: 0
-                    property int updFlatpak: 0
-                    property int updTotal: 0
-                    property string updLastTs: ""
+                    property int    updPacman:  switcher.updPacman
+                    property int    updAur:     switcher.updAur
+                    property int    updFlatpak: switcher.updFlatpak
+                    property int    updTotal:   switcher.updTotal
+                    property string updLastTs:  switcher.updLastTs
 
-                    function runScript(path, args) {
+                    function runScript(path, holdOpen) {
                         if (!path || path.trim() === "") return;
-                        var cmd = '"' + path + '"' + (args && args.length ? " " + args : "");
+
+                        // Se holdOpen = true, resta aperto a fine comando
+                        var hold = holdOpen ? "; echo; read -p 'Premi INVIO per chiudere...' _" : "";
+
+                        // Prova vari terminali; esegue: <terminal> -e bash -lc "<comando>"
+                        var cmd =
+                            "(command -v foot >/dev/null && foot -e bash -lc \\\"" + path + hold + "\\\")" +
+                            " || (command -v kitty >/dev/null && kitty -e bash -lc \\\"" + path + hold + "\\\")" +
+                            " || (command -v alacritty >/dev/null && alacritty -e bash -lc \\\"" + path + hold + "\\\")" +
+                            " || (command -v wezterm >/dev/null && wezterm -e bash -lc \\\"" + path + hold + "\\\")" +
+                            " || (command -v gnome-terminal >/dev/null && gnome-terminal -- bash -lc \\\"" + path + hold + "\\\")" +
+                            " || (command -v xterm >/dev/null && xterm -e bash -lc \\\"" + path + hold + "\\\")";
+
                         Hyprland.dispatch("exec " + cmd);
                     }
+
+
+                    function _listScript(kind) {
+                        if (kind === "all")     return updatesListAllScript;
+                        if (kind === "pacman")  return updatesListPacmanScript;
+                        if (kind === "aur")     return updatesListAurScript;
+                        if (kind === "flatpak") return updatesListFlatpakScript;
+                        return "";
+                    }
+
+                    function showPkgList(kind) {
+                        var s = _listScript(kind);
+                        if (!s) return;
+
+                        listTitle = (kind === "all")      ? "All updates"
+                                : (kind === "pacman")   ? "pacman updates"
+                                : (kind === "aur")      ? "AUR updates"
+                                :                         "Flatpak updates";
+
+                        listText    = "Caricamento…";
+                        listVisible = true;
+                        listLoading = true;
+
+                        // usa il Process interno e mostra l’output nel popup
+                        updatesListProc.exec(["bash","-lc", s]);
+                    }
+
+
+
+                    property bool   listVisible: false
+                    property bool   listLoading: false
+                    property string listTitle:   ""
+                    property string listText:    ""
+
+
 
                     // --- Hypridle status ---
                     Process {
@@ -430,52 +496,152 @@ Variants {
                         interval: autolockStatusPollMs
                         running: true
                         repeat: true
-                        onTriggered: autolockStatusProc.start()
+                        onTriggered: autolockStatusProc.exec(["bash","-lc", autolockStatusCmd])
                     }
                     Timer {
                         id: autolockRecheck
                         interval: 350
                         repeat: false
-                        onTriggered: autolockStatusProc.start()
+                        onTriggered: autolockStatusProc.exec(["bash","-lc", autolockStatusCmd])
                     }
 
                     // --- Update counts (robusto anche se lo script ancora non c'è) ---
-                    property string _updatesCheckCmd: "([ -x \"$HOME/.config/hypr/scripts/updates-check.sh\" ] && \"$HOME/.config/hypr/scripts/updates-check.sh\") || echo '{\"pacman\":0,\"aur\":0,\"flatpak\":0,\"total\":0}'"
+                    // Conta aggiornamenti con fallback alle liste, robusto contro sudo/tilde
+                    property string _updatesCheckCmd: "$HOME/.config/hypr/scripts/updates-check.sh"
 
                     Process {
                         id: updatesCheckProc
                         command: ["bash", "-lc", _updatesCheckCmd]
-
-                        // >>> AGGIUNTO: raccoglie l'output in una stringa
-                        stdout: StdioCollector {
-                            id: updatesCheckOut
-                            waitForEnd: true
-                        }
+                        stdout: StdioCollector { id: updatesCheckOut; waitForEnd: true }
 
                         onExited: function(exitCode, exitStatus) {
-                            var out = (updatesCheckOut.text || "").trim();
+                            var raw = (updatesCheckOut.text || "").trim();
+                            var start = raw.lastIndexOf("{");
+                            var end   = raw.lastIndexOf("}");
+                            var json  = (start !== -1 && end !== -1 && end > start) ? raw.slice(start, end + 1) : raw;
 
+                            var pc = 0, aur = 0, fl = 0, tot = 0;
                             try {
-                                var obj = JSON.parse(out);
-                                updPacman  = obj.pacman  || 0;
-                                updAur     = obj.aur     || 0;
-                                updFlatpak = obj.flatpak || 0;
-                                updTotal   = obj.total   || (updPacman + updAur + updFlatpak);
-                            } catch (e) {
-                                // fallback: prova a pescare 3-4 numeri dall'output
-                                var m = out.match(/(\d+)[^\d]+(\d+)[^\d]+(\d+)(?:[^\d]+(\d+))?/);
-                                if (m) {
-                                    updPacman  = parseInt(m[1]);
-                                    updAur     = parseInt(m[2]);
-                                    updFlatpak = parseInt(m[3]);
-                                    updTotal   = m[4] ? parseInt(m[4]) : (updPacman + updAur + updFlatpak);
-                                } else {
-                                    updPacman = updAur = updFlatpak = updTotal = 0;
-                                }
+                                var obj = JSON.parse(json);
+                                pc  = Number(obj.pacman  || 0);
+                                aur = Number(obj.aur     || 0);
+                                fl  = Number(obj.flatpak || 0);
+                                tot = Number(obj.total   || (pc + aur + fl));
+                            } catch(e) {
+                                pc = aur = fl = tot = 0;
                             }
 
-                            var now = new Date();
-                            updLastTs = Qt.formatTime(now, "hh:mm");
+                            // aggiorna SOLO la cache persistente
+                            switcher.updPacman  = pc;
+                            switcher.updAur     = aur;
+                            switcher.updFlatpak = fl;
+                            switcher.updTotal   = tot;
+                            switcher.updLastTs  = Qt.formatDateTime(new Date(), "HH:mm");
+                            switcher._updLastMs = Date.now();
+                        }
+
+                    }
+
+
+                    // --- Process per le liste (right click) ---
+                    Process {
+                        id: updatesListProc
+                        // comando passato a runtime via .exec(["bash","-lc", s]) da showPkgList(kind)
+                        stdout: StdioCollector {
+                            id: updatesListOut
+                            waitForEnd: true
+                        }
+                        onExited: function(exitCode, exitStatus) {
+                            listLoading = false;
+                            var out = (updatesListOut.text || "").trim();
+                            listText = out.length ? out : "(nessun output)";
+                        }
+                    }
+
+                    Rectangle {
+                        id: listOverlay
+                        anchors.fill: parent
+                        visible: listVisible
+                        z: 9999
+                        color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.background, 0.45)
+
+                        // click fuori per chiudere
+                        MouseArea { anchors.fill: parent; onClicked: listVisible = false }
+
+                        // card centrale
+                        Rectangle {
+                            id: listCard
+                            width: Math.min(parent.width * 0.55, 760)
+                            height: Math.min(parent.height * 0.65, 560)
+                            anchors.centerIn: parent
+                            radius: 14
+                            color: ThemePkg.Theme.surface(0.08)
+                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
+                            border.width: 1
+
+                            Column {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                spacing: 10
+
+                                // header (usa RowLayout -> serve l'import QtQuick.Layouts)
+                                RowLayout {
+                                    spacing: 8
+                                    width: parent.width
+
+                                    Text {
+                                        text: listTitle
+                                        color: ThemePkg.Theme.foreground
+                                        font.pixelSize: 16
+                                        font.family: "Fira Sans Semibold"
+                                        Layout.alignment: Qt.AlignVCenter
+                                    }
+
+                                    Item { Layout.fillWidth: true } // spacer
+
+                                    Rectangle {
+                                        width: 28; height: 28; radius: 8
+                                        color: "transparent"
+                                        border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12)
+                                        Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+
+                                        MouseArea { anchors.fill: parent; onClicked: listVisible = false; cursorShape: Qt.PointingHandCursor }
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: ""   // Nerd Font
+                                            color: ThemePkg.Theme.foreground
+                                            font.pixelSize: 14
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                        }
+                                    }
+                                }
+
+                                // corpo scrollabile
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    radius: 10
+                                    color: ThemePkg.Theme.surface(0.04)
+                                    border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.10)
+                                    border.width: 1
+
+                                    ScrollView {
+                                        anchors.fill: parent
+                                        clip: true
+                                        TextArea {
+                                            id: listArea
+                                            readOnly: true
+                                            wrapMode: Text.NoWrap
+                                            text: listText
+                                            font.family: "CaskaydiaMono Nerd Font"
+                                            font.pixelSize: 12
+                                            color: ThemePkg.Theme.foreground
+                                            background: Rectangle { color: "transparent" }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -488,6 +654,7 @@ Variants {
                         onTriggered: updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd])
                     }
 
+
                     // Recheck poco dopo aver lanciato un update
                     Timer {
                         id: updatesRecheckSoon
@@ -497,8 +664,14 @@ Variants {
                     }
 
                     Component.onCompleted: {
-                        autolockStatusProc.start();
-                        updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd]);
+                        autolockStatusProc.exec(["bash","-lc", autolockStatusCmd]);
+
+                        var now = Date.now();
+                        if ((now - (switcher._updLastMs || 0)) > switcher.updatesMinIntervalMs
+                            || (switcher._updLastMs === 0 && switcher.updTotal === 0)) {
+                            // prima volta o cache vecchia -> aggiorna in background
+                            updatesCheckProc.exec(["bash","-lc", _updatesCheckCmd]);
+                        }
                     }
 
                     Rectangle {
@@ -894,6 +1067,50 @@ Variants {
                 implicitHeight: 47
                 readonly property real scaleFactor: implicitHeight / 45
                 margins { top: 0; left: 0; right: 0 }
+
+                // ===== Global updates cache (always alive) =====
+                // Vive sempre, anche a pannello/overlay chiuso.
+                property int    updPacman: 0
+                property int    updAur: 0
+                property int    updFlatpak: 0
+                property int    updTotal: 0
+                property string updLastTs: ""
+                property var    _updLastMs: 0
+                property int    updatesMinIntervalMs: 5 * 60 * 1000   // 5 min
+
+                // Boot-time updates fetch (parte all'avvio della barra)
+                property string _updatesCheckCmdBoot: "$HOME/.config/hypr/scripts/updates-check.sh"
+                Process {
+                    id: updatesCheckProcBootGlobal
+                    command: ["bash", "-lc", panel._updatesCheckCmdBoot]
+                    stdout: StdioCollector { id: updatesCheckOutBootGlobal; waitForEnd: true }
+                    running: true
+
+                    onExited: function(exitCode, exitStatus) {
+                        var raw = (updatesCheckOutBootGlobal.text || "").trim();
+                        var start = raw.lastIndexOf("{");
+                        var end   = raw.lastIndexOf("}");
+                        var json  = (start !== -1 && end !== -1 && end > start) ? raw.slice(start, end + 1) : raw;
+
+                        var pc = 0, aur = 0, fl = 0, tot = 0;
+                        try {
+                            var obj = JSON.parse(json);
+                            pc  = Number(obj.pacman  || 0);
+                            aur = Number(obj.aur     || 0);
+                            fl  = Number(obj.flatpak || 0);
+                            tot = Number(obj.total   || (pc + aur + fl));
+                        } catch(e) {
+                            pc = aur = fl = tot = 0;
+                        }
+                        panel.updPacman  = pc;
+                        panel.updAur     = aur;
+                        panel.updFlatpak = fl;
+                        panel.updTotal   = tot;
+                        panel.updLastTs  = Qt.formatDateTime(new Date(), "HH:mm");
+                        panel._updLastMs = Date.now();
+                    }
+                }
+
 
                 Rectangle {
                     id: barBg

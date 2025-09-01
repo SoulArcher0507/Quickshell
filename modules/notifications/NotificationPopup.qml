@@ -33,6 +33,9 @@ Scope {
 
     ListModel { id: toastModel }
 
+    // 👇 NEW: registro per evitare re-toast della stessa notifica
+    property var _seenNotifs: []
+
     // --- monitor attivo (come prima) ---
     property var activeScreen: null
     function computeActiveScreen() {
@@ -46,7 +49,19 @@ Scope {
         }
         return screens[0]
     }
-    Component.onCompleted: activeScreen = computeActiveScreen()
+
+    // 👇 CHANGED: oltre a settare lo schermo, segno come “già viste” quelle tracciate
+    Component.onCompleted: {
+        activeScreen = computeActiveScreen()
+        try {
+            if (server && server.trackedNotifications && server.trackedNotifications.values) {
+                for (let n of server.trackedNotifications.values) {
+                    if (_seenNotifs.indexOf(n) === -1) _seenNotifs.push(n)
+                }
+            }
+        } catch (e) {}
+    }
+
     Connections { target: Hyprland; ignoreUnknownSignals: true
         function onFocusedMonitorChanged() { root.activeScreen = root.computeActiveScreen() } }
     Connections { target: Quickshell; ignoreUnknownSignals: true
@@ -65,15 +80,20 @@ Scope {
             if (toastModel.get(i).notif === n) { toastModel.remove(i); return }
     }
 
+    // 👇 CHANGED: tosta solo se non già vista
     Connections { target: server; ignoreUnknownSignals: true
-        function onNotification(n) { addToast(n) } }
+        function onNotification(n) {
+            if (!n) return
+            if (_seenNotifs.indexOf(n) !== -1) return
+            _seenNotifs.push(n)
+            addToast(n)
+        } }
+
+    // (solo rimozioni, niente add)
     Connections { target: server.trackedNotifications; ignoreUnknownSignals: true
-        function onObjectInsertedPost(object, index) { addToast(object) }
         function onObjectRemovedPost(object, index)  { removeToast(object) }
-        function onValueAdded(key, value)   { addToast(value) }
-        function onValueRemoved(key, value) { removeToast(value) }
-        function onAdded(key, value)        { addToast(value) }
-        function onRemoved(key, value)      { removeToast(value) } }
+        function onValueRemoved(key, value)          { removeToast(value) }
+        function onRemoved(key, value)               { removeToast(value) } }
 
     PanelWindow {
         id: win
@@ -161,7 +181,7 @@ Scope {
             Behavior on border.color { ColorAnimation { duration: 120 } }
             border.color: hovered ? root.moduleFontColor : root.moduleBorderColor
 
-            // Auto-close
+            // Auto-close — SOLO popup: NON chiama expire/dismiss sulla notifica
             Timer {
                 id: autoClose
                 repeat: false
@@ -169,7 +189,10 @@ Scope {
                 interval: (toast.n && typeof toast.n.expireTimeout === "number"
                            ? (toast.n.expireTimeout > 0 ? toast.n.expireTimeout * 1000 : 5000)
                            : 5000)
-                onTriggered: if (toast.n && typeof toast.n.expire === "function") toast.n.expire()
+                onTriggered: {
+                    // rimuove solo il toast visivo, la notifica resta nel pannello
+                    root.removeToast(toast.n)
+                }
             }
 
             ColumnLayout {
@@ -241,14 +264,14 @@ Scope {
                         color: (toast.n
                             ? (toast.n.urgency === NS.NotificationUrgency.Critical ? root.criticalColor
                                : (toast.n.urgency === NS.NotificationUrgency.Low
-                                  ? ThemePkg && ThemePkg.Theme ? ThemePkg.Theme.withAlpha(root.textColor, 0.55) : "#cccccc"
+                                  ? (ThemePkg && ThemePkg.Theme ? ThemePkg.Theme.withAlpha(root.textColor, 0.55) : "#cccccc")
                                   : root.moduleFontColor))
                             : root.moduleFontColor)
                         Layout.alignment: Qt.AlignTop
                     }
                 }
 
-                // Azioni (se presenti) — FIX: testo visibile e dimensioni decenti
+                // Azioni (se presenti)
                 Flow {
                     id: actionsFlow
                     Layout.fillWidth: true
@@ -261,13 +284,11 @@ Scope {
                             id: actionBtn
                             required property var modelData
 
-                            // Etichetta robusta (copre text/label/title)
                             property string label: (modelData && (modelData.text || modelData.label || modelData.title || ""))
 
                             text: label
                             hoverEnabled: true
 
-                            // NIENTE più pillole: padding e min-size
                             leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                             implicitHeight: Math.max(28, actionText.implicitHeight + topPadding + bottomPadding)
                             implicitWidth:  Math.max(88, actionText.implicitWidth  + leftPadding + rightPadding)
@@ -279,7 +300,6 @@ Scope {
                                 border.width: 1
                             }
 
-                            // Contenuto semplice: solo testo (gli eventuali icon set restano gestiti dal label stesso)
                             contentItem: Text {
                                 id: actionText
                                 text: actionBtn.text
@@ -295,10 +315,9 @@ Scope {
                     }
                 }
 
-
-
                 // Inline reply (se supportata)
                 RowLayout {
+                    id: replyRow
                     visible: (!!toast.n && toast.n.hasInlineReply)
                     Layout.fillWidth: true
                     spacing: 8
@@ -323,7 +342,7 @@ Scope {
                         padding: 8
                         background: Rectangle {
                             radius: corner
-                            color: control.hovered ? root.hoverFill : (hasTheme ? ThemePkg.Theme.surface(0.06) : "#353535")
+                            color: sendBtn.hovered ? root.hoverFill : (hasTheme ? ThemePkg.Theme.surface(0.06) : "#353535")
                             border.color: root.moduleBorderColor
                             border.width: 1
                         }
@@ -338,6 +357,7 @@ Scope {
                             if (toast.n) {
                                 toast.n.sendInlineReply(replyField.text);
                                 replyField.clear();
+                                // se vuoi lasciarla aperta dopo la reply, commenta la riga sotto
                                 toast.n.dismiss();
                             }
                         }

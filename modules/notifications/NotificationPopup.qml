@@ -7,7 +7,8 @@ import Quickshell.Widgets
 import Quickshell.Services.Notifications as NS
 import Quickshell.Hyprland
 import Quickshell.Wayland
-import "../theme" as ThemePkg    // <— come gli altri moduli; cambia il path se serve
+import "../theme" as ThemePkg          // <— cambia il path se serve
+import "../bar/widgets" as BarWidgets  // <— DndState.qml sta in bar/widgets (aggiusta se serve)
 
 Scope {
     id: root
@@ -33,7 +34,7 @@ Scope {
 
     ListModel { id: toastModel }
 
-    // 👇 NEW: registro per evitare re-toast della stessa notifica
+    // registro per evitare re-toast della stessa notifica
     property var _seenNotifs: []
 
     // --- monitor attivo (come prima) ---
@@ -50,9 +51,9 @@ Scope {
         return screens[0]
     }
 
-    // 👇 CHANGED: oltre a settare lo schermo, segno come “già viste” quelle tracciate
     Component.onCompleted: {
         activeScreen = computeActiveScreen()
+        // segna come viste quelle già tracciate
         try {
             if (server && server.trackedNotifications && server.trackedNotifications.values) {
                 for (let n of server.trackedNotifications.values) {
@@ -67,9 +68,9 @@ Scope {
     Connections { target: Quickshell; ignoreUnknownSignals: true
         function onScreensChanged() { root.activeScreen = root.computeActiveScreen() } }
 
-    // --- add/remove toast (come prima) ---
+    // --- add/remove toast ---
     function addToast(n) {
-        if (!n) return
+        if (!n || BarWidgets.DndState.dnd) return     // blocca creazione in DND
         try { n.tracked = true } catch(e) {}
         for (let i = 0; i < toastModel.count; ++i)
             if (toastModel.get(i).notif === n) return
@@ -80,14 +81,23 @@ Scope {
             if (toastModel.get(i).notif === n) { toastModel.remove(i); return }
     }
 
-    // 👇 CHANGED: tosta solo se non già vista
+    // tosta solo se non già vista e DND OFF
     Connections { target: server; ignoreUnknownSignals: true
         function onNotification(n) {
             if (!n) return
+            if (BarWidgets.DndState.dnd) return
             if (_seenNotifs.indexOf(n) !== -1) return
             _seenNotifs.push(n)
             addToast(n)
         } }
+
+    // reagisci al cambio DND: se ON, chiudi i toast visibili
+    Connections {
+        target: BarWidgets.DndState
+        function onDndChanged() {
+            if (BarWidgets.DndState.dnd) toastModel.clear()
+        }
+    }
 
     // (solo rimozioni, niente add)
     Connections { target: server.trackedNotifications; ignoreUnknownSignals: true
@@ -107,7 +117,7 @@ Scope {
         WlrLayershell.layer: WlrLayer.Overlay
 
         screen: root.activeScreen ?? (Quickshell.screens && Quickshell.screens.length ? Quickshell.screens[0] : null)
-        visible: toastModel.count > 0
+        visible: !BarWidgets.DndState.dnd && toastModel.count > 0   // nascondi i popup quando DND è ON
 
         implicitWidth: 420
         implicitHeight: column.implicitHeight
@@ -136,20 +146,17 @@ Scope {
             width: 380
             implicitHeight: content.implicitHeight + 24
 
-            // Animazioni
             opacity: 0.0; y: 8
             Behavior on opacity { NumberAnimation { duration: 140 } }
             Behavior on y       { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
             Component.onCompleted: { opacity = 1.0; y = 0 }
 
-            // Hover + click
             property bool hovered: false
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
 
-                // se il click cade dentro reply/azioni, lascia passare l'evento al controllo
                 function insideInteractive(mouse) {
                     function within(item) {
                         if (!item || !item.visible) return false;
@@ -161,7 +168,7 @@ Scope {
 
                 onPressed: {
                     if (insideInteractive(mouse)) {
-                        mouse.accepted = false;    // lascia il click al TextField/Buttons
+                        mouse.accepted = false;
                         return;
                     }
                     autoClose.running = false;
@@ -189,10 +196,7 @@ Scope {
                 interval: (toast.n && typeof toast.n.expireTimeout === "number"
                            ? (toast.n.expireTimeout > 0 ? toast.n.expireTimeout * 1000 : 5000)
                            : 5000)
-                onTriggered: {
-                    // rimuove solo il toast visivo, la notifica resta nel pannello
-                    root.removeToast(toast.n)
-                }
+                onTriggered: { root.removeToast(toast.n) }
             }
 
             ColumnLayout {
@@ -207,7 +211,6 @@ Scope {
                     Layout.fillWidth: true
                     spacing: 10
 
-                    // Icona / immagine
                     Item {
                         Layout.preferredWidth: 28
                         Layout.preferredHeight: 28
@@ -233,7 +236,6 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
 
-                        // Titolo in accent come la barra
                         Text {
                             text: (toast.n ? (toast.n.summary || toast.n.appName) : "")
                             color: root.moduleFontColor
@@ -243,7 +245,6 @@ Scope {
                             Layout.fillWidth: true
                         }
 
-                        // Corpo in foreground attenuato
                         Text {
                             text: (toast.n && toast.n.body) ? toast.n.body : ""
                             textFormat: Text.RichText
@@ -256,7 +257,6 @@ Scope {
                         }
                     }
 
-                    // Pallino urgenza tematizzato
                     Rectangle {
                         Layout.preferredWidth: 8
                         Layout.preferredHeight: 8
@@ -271,7 +271,6 @@ Scope {
                     }
                 }
 
-                // Azioni (se presenti)
                 Flow {
                     id: actionsFlow
                     Layout.fillWidth: true
@@ -283,7 +282,6 @@ Scope {
                         delegate: QQC2.Button {
                             id: actionBtn
                             required property var modelData
-
                             property string label: (modelData && (modelData.text || modelData.label || modelData.title || ""))
 
                             text: label
@@ -315,7 +313,6 @@ Scope {
                     }
                 }
 
-                // Inline reply (se supportata)
                 RowLayout {
                     id: replyRow
                     visible: (!!toast.n && toast.n.hasInlineReply)
@@ -357,7 +354,6 @@ Scope {
                             if (toast.n) {
                                 toast.n.sendInlineReply(replyField.text);
                                 replyField.clear();
-                                // se vuoi lasciarla aperta dopo la reply, commenta la riga sotto
                                 toast.n.dismiss();
                             }
                         }
@@ -365,7 +361,6 @@ Scope {
                 }
             }
 
-            // cleanup come prima
             Connections {
                 target: toast.n
                 ignoreUnknownSignals: true

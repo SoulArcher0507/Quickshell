@@ -7,17 +7,19 @@ import Quickshell
 import Quickshell.Services.Notifications
 import Quickshell.Services.Mpris
 import Qt.labs.platform 1.1 as Labs
+import Qt.labs.settings 1.1
 import "../../theme" as ThemePkg
+import "../../bar/widgets" as BarWidgets   // <-- DndState.qml sta in bar/widgets (aggiusta se serve)
 
 Rectangle {
     id: root
     property int margin: 16
 
     // ====== manopole larghezza ======
-    property real popupFrac: 0.30      // % dello schermo (0.55 = 55%)
-    property int  popupMinWidth: 400   // min px
-    property int  popupMaxWidth: 600   // max px
-    property int  popupFixedWidth: 0   // se >0, usa questo valore fisso in px
+    property real popupFrac: 0.30
+    property int  popupMinWidth: 400
+    property int  popupMaxWidth: 600
+    property int  popupFixedWidth: 0
 
     readonly property int popupWidth: {
         const scr = (root.window && root.window.screen) ? root.window.screen : Screen.primary
@@ -26,7 +28,6 @@ Rectangle {
         Math.floor(popupFixedWidth > 0 ? popupFixedWidth : wByFrac)
     }
 
-    // Forza la larghezza anche sulla finestra (PanelWindow/LayerShell)
     function _applyWidth() {
         root.width = popupWidth
         root.implicitWidth = popupWidth
@@ -41,7 +42,11 @@ Rectangle {
         }
     }
 
-    Component.onCompleted: _applyWidth()
+    Component.onCompleted: {
+        _applyWidth()
+        // sincronizza il runtime col valore persistito
+        BarWidgets.DndState.dnd = notifSettings.dnd
+    }
     onPopupWidthChanged:   _applyWidth()
     Connections {
         target: root.window ? root.window.screen : null
@@ -69,8 +74,13 @@ Rectangle {
     height: implicitHeight
     implicitHeight: content.implicitHeight + margin * 2
 
-    // --- DO NOT DISTURB locale ---
-    property bool doNotDisturb: false
+    // --- DO NOT DISTURB: persistenza + stato runtime condiviso ---
+    Settings {
+        id: notifSettings
+        category: "quickshell.notifications"
+        property bool dnd: false
+    }
+    readonly property bool doNotDisturb: BarWidgets.DndState.dnd
 
     // Limite massimo finestra: metà schermo (fallback 540px)
     readonly property int maxPopupHeight: Math.floor(
@@ -86,7 +96,8 @@ Rectangle {
         actionsSupported: true
         imageSupported: true
         keepOnReload: true
-        onNotification: (n) => { if (!root.doNotDisturb) n.tracked = true }
+        // Traccia SEMPRE: così compaiono nel pannello anche in DND
+        onNotification: (n) => { n.tracked = true }
     }
 
     // ===== Cache icone =====
@@ -102,7 +113,6 @@ Rectangle {
         const home = Labs.StandardPaths.writableLocation(Labs.StandardPaths.HomeLocation)
 
         const bases = [
-            // sistema
             "/usr/share/icons/hicolor/256x256/apps/",
             "/usr/share/icons/hicolor/128x128/apps/",
             "/usr/share/icons/hicolor/64x64/apps/",
@@ -112,8 +122,6 @@ Rectangle {
             "/usr/share/icons/hicolor/16x16/apps/",
             "/usr/share/icons/hicolor/scalable/apps/",
             "/usr/share/pixmaps/",
-
-            // FLATPAK (exports globali e per-utente)
             "/var/lib/flatpak/exports/share/icons/hicolor/256x256/apps/",
             "/var/lib/flatpak/exports/share/icons/hicolor/128x128/apps/",
             "/var/lib/flatpak/exports/share/icons/hicolor/64x64/apps/",
@@ -142,14 +150,10 @@ Rectangle {
     function _readDesktopIcon(desktopId) {
         if (!desktopId) return ""
         const home = Labs.StandardPaths.writableLocation(Labs.StandardPaths.HomeLocation)
-
         const appDirs = [
-            // sistema
             "/usr/share/applications/",
             "/usr/local/share/applications/",
             home + "/.local/share/applications/",
-
-            // FLATPAK (exports globale e utente)
             "/var/lib/flatpak/exports/share/applications/",
             home + "/.local/share/flatpak/exports/share/applications/"
         ]
@@ -168,11 +172,7 @@ Rectangle {
         }
         return ""
     }
-    function _themeUrl(name) {
-        // Prova prima il provider "icon" (più comune), poi "theme"
-        return "image://icon/" + name
-    }
-
+    function _themeUrl(name) { return "image://icon/" + name }
 
     function _iconSourceFor(n) {
         function pick(s){ return (s && typeof s === "string" && s.length > 0) ? s : "" }
@@ -180,9 +180,8 @@ Rectangle {
 
         const h = n.hints || {}
 
-        // 1) Percorso esplicito (hints o payload)
         const explicitPath = pick(h["image-path"]) || pick(h["app_icon"]) ||
-                            pick(h["image"]) || pick(n.image) || pick(n.appIcon)
+                             pick(h["image"]) || pick(n.image) || pick(n.appIcon)
         if (explicitPath) {
             const p = explicitPath
             if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http"))
@@ -190,15 +189,12 @@ Rectangle {
             return _themeUrl(p)
         }
 
-
-        // 2) Nome icona (hints o campi classici)
         const byName = pick(h["icon-name"]) || pick(n.appIconName) || pick(n.iconName)
         if (byName) {
             const guess = _guessIconFileFromName(byName)
             return guess || ("image://theme/" + byName)
         }
 
-        // 3) desktop-entry → leggi Icon= dal .desktop
         const desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId)
         if (desk) {
             const iconFromDesk = _readDesktopIcon(desk)
@@ -211,7 +207,6 @@ Rectangle {
             return _themeUrl(desk.replace(/\.desktop$/,""))
         }
 
-        // 4) fallback: prova a derivare dal nome app
         const appn = pick(n.appName)
         if (appn) {
             const name = appn.replace(/\s+/g,"-").toLowerCase()
@@ -230,24 +225,16 @@ Rectangle {
             _iconCache[key] = src; return src
         }
 
-
-        // 5) fallback definitivo
         return _themeUrl("dialog-information")
     }
-
 
     function artFor(p){
         if (!p) return "image://theme/audio-x-generic"
         const key = JSON.stringify({ art:p.trackArtUrl, desk:p.desktopEntry, id:p.identity })
         if (_artCache[key]) return _artCache[key]
-
         if (p.trackArtUrl && p.trackArtUrl.length>0) { _artCache[key] = p.trackArtUrl; return _artCache[key] }
-        if (p.desktopEntry && p.desktopEntry.length>0) {
-            _artCache[key] = _themeUrl(p.desktopEntry.replace(/\.desktop$/,""))
-        }
-        if (p.identity && p.identity.length>0) {
-            _artCache[key] = _themeUrl(p.identity.replace(/\s+/g,"-").toLowerCase())
-        }
+        if (p.desktopEntry && p.desktopEntry.length>0) { _artCache[key] = _themeUrl(p.desktopEntry.replace(/\.desktop$/,"")) }
+        if (p.identity && p.identity.length>0) { _artCache[key] = _themeUrl(p.identity.replace(/\s+/g,"-").toLowerCase()) }
         _artCache[key] = _themeUrl("audio-x-generic")
         return _artCache[key]
     }
@@ -296,13 +283,17 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: root.doNotDisturb = !root.doNotDisturb
                     cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        BarWidgets.DndState.dnd = !BarWidgets.DndState.dnd
+                        notifSettings.dnd       = BarWidgets.DndState.dnd
+                    }
                 }
             }
         }
 
         // ===================== MEDIA MANAGER =====================
+        // (tutto invariato)
         Rectangle {
             id: mediaCarousel
             Layout.fillWidth: true
@@ -453,12 +444,11 @@ Rectangle {
                 }
             }
         }
-        // =================== FINE MEDIA MANAGER =====================
 
         Button {
             id: clearAllBtn
             Layout.alignment: Qt.AlignRight
-            visible: server.trackedNotifications.values.length > 0
+            visible: notificationList.count > 0
             text: "Clear all"
             background: Rectangle {
                 radius: 8
@@ -474,6 +464,13 @@ Rectangle {
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
                 padding: 8
+            }
+            onClicked: {
+                // copia difensiva per evitare problemi mentre iteriamo
+                const arr = (server.trackedNotifications.values || []).slice();
+                for (let n of arr) {
+                    try { n.dismiss(); } catch (e) {}
+                }
             }
         }
 
@@ -509,26 +506,30 @@ Rectangle {
 
             model: server.trackedNotifications
 
+
+
+            // ====== DELEGATE ======
             delegate: Rectangle {
                 width: notificationList.width - notificationList._vbarWidth
                 radius: 6
                 color: cardBg
                 border.color: panelBorder
-
+            
+                // ogni elemento è una Notification, accessibile come modelData
                 property string iconSource: root._iconSourceFor(modelData)
-
+            
                 Column {
                     id: contentCol
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 6
-
+            
                     Row {
                         id: headerRow
                         spacing: 8
                         anchors.left: parent.left
                         anchors.right: parent.right
-
+            
                         Image {
                             id: appIcon
                             width: 22; height: 22
@@ -536,20 +537,10 @@ Rectangle {
                             fillMode: Image.PreserveAspectFit
                             asynchronous: true
                             smooth: true; cache: true
-
-                            // Se il provider tema non risolve, prova file reali o .desktop
                             onStatusChanged: {
                                 if (status === Image.Error) {
-                                    // prova l'altro provider di tema
-                                    if (source.startsWith("image://icon/")) {
-                                        source = source.replace("image://icon/", "image://theme/")
-                                        return
-                                    } else if (source.startsWith("image://theme/")) {
-                                        source = source.replace("image://theme/", "image://icon/")
-                                        return
-                                    }
-
-                                    // poi prova .desktop / nome / file come già fai
+                                    if (source.startsWith("image://icon/"))      { source = source.replace("image://icon/","image://theme/"); return }
+                                    else if (source.startsWith("image://theme/")){ source = source.replace("image://theme/","image://icon/");  return }
                                     const h = (modelData && modelData.hints) ? modelData.hints : {}
                                     const desk = (modelData && (modelData.desktopEntry || modelData.desktopId)) || h["desktop-entry"]
                                     let fallback = ""
@@ -557,8 +548,8 @@ Rectangle {
                                         const dIcon = root._readDesktopIcon(desk)
                                         if (dIcon) {
                                             fallback = (dIcon.startsWith("file:") || dIcon.startsWith("/"))
-                                                    ? (dIcon.startsWith("file:") ? dIcon : "file://" + dIcon)
-                                                    : root._guessIconFileFromName(dIcon)
+                                                ? (dIcon.startsWith("file:") ? dIcon : "file://" + dIcon)
+                                                : root._guessIconFileFromName(dIcon)
                                         }
                                     }
                                     if (!fallback) {
@@ -568,10 +559,8 @@ Rectangle {
                                     source = fallback || _themeUrl("application-x-executable")
                                 }
                             }
-
                         }
-
-
+            
                         Text {
                             id: titleText
                             text: modelData.summary
@@ -584,7 +573,7 @@ Rectangle {
                             width: parent.width - appIcon.width - headerRow.spacing
                         }
                     }
-
+            
                     Text {
                         id: bodyText
                         width: parent.width
@@ -595,33 +584,25 @@ Rectangle {
                         wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                         elide: Text.ElideRight
                     }
-
-                    // ======= AZIONI NOTIFICA (FIX BOTTONI & TESTO) =======
+            
+                    // Azioni (se presenti)
                     Flow {
                         id: actionsFlow
                         width: parent.width
                         spacing: 8
                         visible: modelData.actions && modelData.actions.length > 0
                         height: visible ? implicitHeight : 0
-
+            
                         Repeater {
                             model: modelData.actions
                             delegate: Button {
                                 id: actionBtn
-                                // il "modelData" qui è l'oggetto azione { text, invoke, … }
                                 visible: modelData && modelData.text && modelData.text.length > 0
                                 text: visible ? modelData.text : ""
-
-                                // dimensioni leggibili
-                                leftPadding: 10
-                                rightPadding: 10
-                                topPadding: 6
-                                bottomPadding: 6
+                                leftPadding: 10; rightPadding: 10; topPadding: 6; bottomPadding: 6
                                 implicitHeight: contentItem.implicitHeight + topPadding + bottomPadding
                                 implicitWidth: Math.max(96, contentItem.implicitWidth + leftPadding + rightPadding)
-                                height: implicitHeight
-                                width: implicitWidth
-
+                                height: implicitHeight; width: implicitWidth
                                 background: Rectangle {
                                     radius: 6
                                     color: ThemePkg.Theme.surface(0.06)
@@ -637,85 +618,80 @@ Rectangle {
                                     elide: Text.ElideRight
                                     maximumLineCount: 1
                                 }
-
                                 onClicked: { if (modelData && modelData.invoke) modelData.invoke() }
                             }
                         }
                     }
-                    // ======= FINE AZIONI =======
                 }
 
                 implicitHeight: contentCol.implicitHeight + 16
 
-// --- Close button coerente e centrato ---
-Item {
-    id: closeBtn
-    anchors.right: parent.right
-    anchors.top: parent.top
-    anchors.margins: 8
-    width: 22
-    height: width
-
-    property bool hovered: false
-    property bool pressed: false
-
-    Rectangle {
-        anchors.fill: parent
-        radius: width / 2
-        antialiasing: true
-        color: ThemePkg.Theme.background
-        border.width: hovered ? 1.5 : 1
-        border.color: hovered
-            ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.accent, 0.85)
-            : ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
-    }
-
-    Shape {
-        anchors.centerIn: parent
-        width: parent.width
-        height: parent.height
-        antialiasing: true
-        opacity: pressed ? 0.8 : 1.0
-
-        ShapePath {
-            strokeWidth: 2.2
-            strokeColor: ThemePkg.Theme.accent
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            fillColor: "transparent"
-            PathMove { x: 7; y: 7 }
-            PathLine { x: closeBtn.width - 7; y: closeBtn.height - 7 }
-        }
-        ShapePath {
-            strokeWidth: 2.2
-            strokeColor: ThemePkg.Theme.accent
-            capStyle: ShapePath.RoundCap
-            joinStyle: ShapePath.RoundJoin
-            fillColor: "transparent"
-            PathMove { x: closeBtn.width - 7; y: 7 }
-            PathLine { x: 7; y: closeBtn.height - 7 }
-        }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        onEntered:  closeBtn.hovered = true
-        onExited:   closeBtn.hovered = false
-        onPressed:  closeBtn.pressed = true
-        onReleased: closeBtn.pressed = false
-        onClicked:  modelData.dismiss()
-    }
-}
-
-
+                // --- Close button
+                Item {
+                    id: closeBtn
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 8
+                    width: 22; height: width
+                    property bool hovered: false
+                    property bool pressed: false
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: width/2
+                        antialiasing: true
+                        color: ThemePkg.Theme.background
+                        border.width: hovered ? 1.5 : 1
+                        border.color: hovered
+                            ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.accent, 0.85)
+                            : ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
+                    }
+                    Shape {
+                        anchors.centerIn: parent
+                        width: parent.width; height: parent.height
+                        antialiasing: true
+                        opacity: pressed ? 0.8 : 1.0
+                        ShapePath {
+                            strokeWidth: 2.2
+                            strokeColor: ThemePkg.Theme.accent
+                            capStyle: ShapePath.RoundCap
+                            joinStyle: ShapePath.RoundJoin
+                            fillColor: "transparent"
+                            PathMove { x: 7; y: 7 }
+                            PathLine { x: closeBtn.width - 7; y: closeBtn.height - 7 }
+                        }
+                        ShapePath {
+                            strokeWidth: 2.2
+                            strokeColor: ThemePkg.Theme.accent
+                            capStyle: ShapePath.RoundCap
+                            joinStyle: ShapePath.RoundJoin
+                            fillColor: "transparent"
+                            PathMove { x: closeBtn.width - 7; y: 7 }
+                            PathLine { x: 7; y: closeBtn.height - 7 }
+                        }
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onEntered:  closeBtn.hovered = true
+                        onExited:   closeBtn.hovered = false
+                        onPressed:  closeBtn.pressed = true
+                        onReleased: closeBtn.pressed = false
+                        onClicked:  modelData.dismiss()
+                    }
+                }
             }
+            // ====== FINE DELEGATE ======
 
+            // Messaggio quando non ci sono notifiche
             Rectangle {
                 anchors.fill: parent
                 color: "transparent"
-                visible: server.trackedNotifications.values.length === 0
+                visible: notificationList.count === 0
+
+
+
+
                 Text {
                     anchors.centerIn: parent
                     text: root.doNotDisturb ? "Do Not Disturb enabled" : "No notifications"

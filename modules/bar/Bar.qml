@@ -569,24 +569,67 @@ Variants {
                         // click fuori per chiudere
                         MouseArea { anchors.fill: parent; onClicked: listVisible = false }
 
-                        // card centrale
+                        // card centrale (autosize con limiti)
                         Rectangle {
                             id: listCard
-                            width: Math.min(parent.width * 0.55, 760)
-                            height: Math.min(parent.height * 0.65, 560)
                             anchors.centerIn: parent
                             radius: 14
                             color: ThemePkg.Theme.surface(0.08)
                             border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
                             border.width: 1
 
+                            // ==== LIMITE MASSIMO (come prima) ====
+                            readonly property int maxCardW: Math.min(parent.width * 0.55, 760)
+                            readonly property int maxCardH: Math.min(parent.height * 0.65, 560)
+
+                            // ==== MINIMI per non farla microscopica ====
+                            readonly property int minCardW: 320
+                            readonly property int minBodyH: 120
+
+                            // ==== METRICHE MONO (coerenti con TextArea) ====
+                            FontMetrics {
+                                id: monoFm
+                                font.family: "CaskaydiaMono Nerd Font"
+                                font.pixelSize: 12
+                            }
+
+                            // ==== Calcolo righe e lunghezza massima ====
+                            readonly property var _linesArr: (listText && listText.length) ? listText.split("\n") : (listLoading ? ["Caricamento…"] : ["(nessun pacchetto)"])
+                            readonly property int _lines: _linesArr.length
+                            readonly property int _maxLen: {
+                                var m = 0;
+                                for (var i = 0; i < _linesArr.length; ++i) m = Math.max(m, _linesArr[i].length);
+                                Math.max(m, 8) // evita larghezze ridicole
+                            }
+
+                            // ==== Spazi interni (margini + scrollbar) ====
+                            readonly property int _sidePad: 40   // testo, bordi, scrollbar
+                            readonly property int _topPad: 14
+                            readonly property int _bottomPad: 14
+                            readonly property int _betweenPad: 10  // spazio tra header e corpo
+
+                            // ==== Header dinamico (leggiamo la sua altezza reale) ====
+                            // (definito sotto come RowLayout { id: headerRow })
+                            readonly property int _headerH: headerRow.implicitHeight
+
+                            // ==== Dimensioni desiderate ====
+                            readonly property real _desiredBodyW: Math.ceil(_maxLen * monoFm.averageCharacterWidth) + _sidePad
+                            readonly property int  _desiredBodyH: Math.ceil(_lines * monoFm.height) + 12
+
+                            readonly property int  _maxBodyH: Math.max(0, maxCardH - (_topPad + _headerH + _betweenPad + _bottomPad))
+                            readonly property int  _bodyH: Math.min(_maxBodyH, Math.max(minBodyH, _desiredBodyH))
+
+                            width:  Math.min(maxCardW, Math.max(minCardW, _desiredBodyW + _topPad + _bottomPad))
+                            height: _topPad + _headerH + _betweenPad + _bodyH + _bottomPad
+
                             ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 14
                                 spacing: 10
 
-                                // header
+                                // ====== header ======
                                 RowLayout {
+                                    id: headerRow
                                     spacing: 8
                                     width: parent.width
 
@@ -600,7 +643,6 @@ Variants {
 
                                     Item { Layout.fillWidth: true } // spacer
 
-                                    // chiudi
                                     Rectangle {
                                         width: 28; height: 28; radius: 8
                                         color: "transparent"
@@ -610,7 +652,7 @@ Variants {
                                         MouseArea { anchors.fill: parent; onClicked: listVisible = false; cursorShape: Qt.PointingHandCursor }
                                         Text {
                                             anchors.centerIn: parent
-                                            text: ""   // Nerd Font
+                                            text: ""
                                             color: ThemePkg.Theme.foreground
                                             font.pixelSize: 14
                                             font.family: "CaskaydiaMono Nerd Font"
@@ -618,7 +660,7 @@ Variants {
                                     }
                                 }
 
-                                // corpo scrollabile
+                                // ====== corpo scrollabile ======
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
@@ -634,7 +676,7 @@ Variants {
                                             id: listArea
                                             readOnly: true
                                             wrapMode: Text.NoWrap
-                                            text: listText
+                                            text: listText && listText.length ? listText : (listLoading ? "Caricamento…" : "(nessun pacchetto)")
                                             font.family: "CaskaydiaMono Nerd Font"
                                             font.pixelSize: 12
                                             color: ThemePkg.Theme.foreground
@@ -642,9 +684,9 @@ Variants {
                                         }
                                     }
                                 }
-
                             }
                         }
+
                     }
 
 
@@ -694,7 +736,7 @@ Variants {
                             spacing: 10
 
                             Text {
-                                text: "Arch tools"
+                                text: "Arch Tools"
                                 color: moduleFontColor
                                 font.pixelSize: 14
                                 font.family: "Fira Sans Semibold"

@@ -416,6 +416,7 @@ Variants {
                     property string updatesListFlatpakScript: "$HOME/.config/hypr/scripts/updates-list-flatpak.sh"
 
 
+
                     // Check real Hypridle status: exit 0 => running (autolock ON), non-zero => not running (autolock OFF)
                     property string autolockStatusCmd: "pgrep -x hypridle"
                     property int    autolockStatusPollMs: 3000
@@ -457,29 +458,30 @@ Variants {
                         return "";
                     }
 
-                    function showPkgList(kind) {
-                        var s = _listScript(kind);
-                        if (!s) return;
-
-                        listTitle = (kind === "all")      ? "All updates"
-                                : (kind === "pacman")   ? "pacman updates"
-                                : (kind === "aur")      ? "AUR updates"
-                                :                         "Flatpak updates";
-
-                        listText    = "Caricamento…";
-                        listVisible = true;
-                        listLoading = true;
-
-                        // usa il Process interno e mostra l’output nel popup
-                        updatesListProc.exec(["bash","-lc", s]);
-                    }
-
-
-
                     property bool   listVisible: false
                     property bool   listLoading: false
                     property string listTitle:   ""
                     property string listText:    ""
+                    property string listKind:    ""
+
+                    // apri e carica
+                    function showPkgList(kind) {
+                        var s = _listScript(kind);
+                        if (!s) return;
+
+                        listKind   = kind;
+                        listTitle  = (kind === "all") ? "All Updates"
+                                : (kind === "pacman") ? "Pacman"
+                                : (kind === "aur") ? "AUR"
+                                : "Flatpak";
+                        listText    = "Caricamento…";
+                        listVisible = true;
+                        listLoading = true;
+
+                        // esegue lo script e mostra l'output
+                        updatesListProc.exec(["bash","-lc", s]);
+                    }
+
 
 
 
@@ -542,22 +544,21 @@ Variants {
 
                     }
 
-
-                    // --- Process per le liste (right click) ---
                     Process {
                         id: updatesListProc
-                        // comando passato a runtime via .exec(["bash","-lc", s]) da showPkgList(kind)
-                        stdout: StdioCollector {
-                            id: updatesListOut
-                            waitForEnd: true
-                        }
+                        // comando passato runtime via .exec(["bash","-lc", <script>])
+                        stdout: StdioCollector { id: updatesListOut; waitForEnd: true }
                         onExited: function(exitCode, exitStatus) {
                             listLoading = false;
-                            var out = (updatesListOut.text || "").trim();
-                            listText = out.length ? out : "(nessun output)";
+                            var raw = (updatesListOut.text || "").trim();
+                            // Mostra l'output esatto dei tuoi script (con versioni, ecc.)
+                            listText = raw.length ? raw : "(no packages)";
                         }
                     }
 
+
+
+                    // Overlay per la lista pacchetti
                     Rectangle {
                         id: listOverlay
                         anchors.fill: parent
@@ -579,12 +580,12 @@ Variants {
                             border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
                             border.width: 1
 
-                            Column {
+                            ColumnLayout {
                                 anchors.fill: parent
                                 anchors.margins: 14
                                 spacing: 10
 
-                                // header (usa RowLayout -> serve l'import QtQuick.Layouts)
+                                // header
                                 RowLayout {
                                     spacing: 8
                                     width: parent.width
@@ -599,6 +600,7 @@ Variants {
 
                                     Item { Layout.fillWidth: true } // spacer
 
+                                    // chiudi
                                     Rectangle {
                                         width: 28; height: 28; radius: 8
                                         color: "transparent"
@@ -618,9 +620,8 @@ Variants {
 
                                 // corpo scrollabile
                                 Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
                                     radius: 10
                                     color: ThemePkg.Theme.surface(0.04)
                                     border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.10)
@@ -641,9 +642,11 @@ Variants {
                                         }
                                     }
                                 }
+
                             }
                         }
                     }
+
 
 
                     Timer {

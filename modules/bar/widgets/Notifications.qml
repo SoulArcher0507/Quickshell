@@ -362,7 +362,7 @@ Rectangle {
                                 Layout.fillWidth: true
                                 text: mediaCarousel.cp
                                       ? (mediaCarousel.cp.trackTitle || mediaCarousel.cp.identity || "Media")
-                                      : "Nessun player MPRIS attivo"
+                                      : "No MPRIS player active"
                                 color: primary
                                 font.pixelSize: 16
                                 font.family: "Fira Sans Semibold"
@@ -688,8 +688,6 @@ Rectangle {
                 anchors.fill: parent
                 color: "transparent"
                 visible: notificationList.count === 0
-
-
 
 
                 Text {

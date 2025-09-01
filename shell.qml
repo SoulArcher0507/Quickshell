@@ -8,6 +8,7 @@ import "modules/notifications" as Notifications
 import Quickshell.Services.Notifications as NS
 import "modules/overlays"
 import "modules/theme" as ThemePkg
+import "modules/cliphist" as QSMod
 
 
 ShellRoot {
@@ -58,4 +59,8 @@ ShellRoot {
 
     // --- OSD volume: singola istanza. Il compositor sceglie il monitor attivo. ---
     VolumeOverlay { }
+    QSMod.CliphistPopup {
+        // offset per stare sotto la barra (adatta se la tua bar è più alta)
+        topMarginPx: 48
+    }
 }

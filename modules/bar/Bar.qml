@@ -14,6 +14,7 @@ import QtQuick.Layouts 1.15
 
 
 
+
 // Create a proper panel window
 Variants {
     id: bar
@@ -402,7 +403,7 @@ Variants {
                     // === Your scripts here ===
                     property string changeWallpaperScript: "$HOME/.config/swaybg/wallpaper.sh"
                     property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
-                    property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
+                    // property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
 
                     // === Nuovi script aggiornamenti (li fornisco nel prossimo messaggio) ===
                     property string updatesCheckScript:   "$HOME/.config/hypr/scripts/updates-check.sh"
@@ -1269,7 +1270,7 @@ Variants {
                                         cursorShape: Qt.PointingHandCursor
                                         onEntered: parent.hovered = true
                                         onExited:  parent.hovered = false
-                                        onClicked: runScript(openClipboardScript)
+                                        onClicked: Quickshell.execDetached(["qs","ipc","call","cliphist","show"])
                                     }
                                     ToolTip.visible: maClip.containsMouse
                                     ToolTip.delay: 250
@@ -1983,6 +1984,7 @@ Variants {
                     }
                 }
             }
+
         }
     }
 }

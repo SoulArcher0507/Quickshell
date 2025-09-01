@@ -464,6 +464,80 @@ Variants {
                     property string listText:    ""
                     property string listKind:    ""
 
+                    // ===== Overlay terminale interattivo (click sinistro) =====
+                    property bool   termVisible: false
+                    property string termTitle:   ""
+                    property string termKind:    ""
+                    property string termScript:  ""
+                    property bool   termPasswordMode: false
+
+                    function _updateScript(kind) {
+                        if (kind === "all")     return updatesAllScript
+                        if (kind === "pacman")  return updatePacmanScript
+                        if (kind === "aur")     return updateAurScript
+                        if (kind === "flatpak") return updateFlatpakScript
+                        return ""
+                    }
+                    function showTerm(kind) {
+                        var s = _updateScript(kind)
+                        if (!s) return
+                        termKind   = kind
+                        termTitle  = (kind === "all")     ? "Tutti gli aggiornamenti"
+                                : (kind === "pacman")  ? "Aggiorna pacman"
+                                : (kind === "aur")     ? "Aggiorna AUR"
+                                :                        "Aggiorna Flatpak"
+                        termScript = s
+                        termVisible = true
+                        termStartTimer.restart()
+                    }
+
+                    // eseguo poco dopo l’apertura per dare focus all’input
+                    Timer {
+                        id: termStartTimer
+                        interval: 10
+                        repeat: false
+                        onTriggered: {
+                            // PTY con `script` se presente; fallback a bash “normale”
+                            const cmd = 'if command -v script >/dev/null; then ' +
+                                        'script -qefc "bash -lc \\"' + termScript.replace(/"/g, '\\"') + '\\"" /dev/null; ' +
+                                        'else bash -lc "' + termScript.replace(/"/g, '\\"') + '"; fi'
+                            termProc.exec(["bash","-lc", cmd])
+                        }
+                    }
+
+                    Process {
+                        id: termProc
+                        stdinEnabled: true
+
+                        stdout: SplitParser {
+                            splitMarker: "\n"
+                            onRead: (line) => handleTermLine(line)
+                        }
+                        stderr: SplitParser {
+                            splitMarker: "\n"
+                            onRead: (line) => handleTermLine(line)
+                        }
+
+                        onStarted: {
+                            termOutput.text = `$ ${termScript}\n`
+                            termInput.forceActiveFocus()
+                        }
+                        onExited: (code, status) => {
+                            termOutput.append(`\n[Processo terminato] exit=${code}\n`)
+                            termPasswordMode = false
+                            // Ricontrolla i numeri a fine update
+                            updatesRecheckSoon.start()
+                        }
+                    }
+
+                    function handleTermLine(line) {
+                        termOutput.append(line + "\n")
+                        if (/assword.*: *$/i.test(line) || /\[sudo\] password/i.test(line))
+                            termPasswordMode = true
+                        termOutput.cursorPosition = termOutput.length
+                    }
+
+
                     // apri e carica
                     function showPkgList(kind) {
                         var s = _listScript(kind);
@@ -689,6 +763,105 @@ Variants {
 
                     }
 
+                    // ===== Overlay terminale (stile finestra a destra) =====
+                    Rectangle {
+                        id: termOverlay
+                        anchors.fill: parent
+                        visible: termVisible
+                        z: 9999
+                        color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.background, 0.45)
+
+                        // click fuori chiude
+                        MouseArea { anchors.fill: parent; onClicked: termVisible = false }
+
+                        // card centrale
+                        Rectangle {
+                            id: termCard
+                            anchors.centerIn: parent
+                            width: Math.min(900, parent.width - 80)
+                            height: Math.min(560, parent.height - 80)
+                            radius: 14
+                            color: ThemePkg.Theme.surface(0.08)
+                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
+                            border.width: 1
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                spacing: 10
+
+                                // header
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Text {
+                                        text: termTitle
+                                        color: ThemePkg.Theme.foreground
+                                        font.pixelSize: 16
+                                        font.family: "Fira Sans Semibold"
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Button {
+                                        text: termProc.running ? "Stop" : "Chiudi"
+                                        onClicked: termProc.running ? termProc.signal(2) : (termVisible = false)
+                                        background: Rectangle {
+                                            radius: 8
+                                            color: ThemePkg.Theme.surface(0.16)
+                                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12)
+                                            border.width: 1
+                                        }
+                                    }
+                                }
+
+                                // output
+                                ScrollView {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 380
+                                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                                    TextArea {
+                                        id: termOutput
+                                        readOnly: true
+                                        wrapMode: TextArea.NoWrap
+                                        textFormat: TextEdit.PlainText
+                                        selectByMouse: true
+                                        persistentSelection: true
+                                        font.family: "monospace"
+                                        color: ThemePkg.Theme.foreground
+                                        background: Rectangle { color: ThemePkg.Theme.surface(0.06); radius: 10 }
+                                    }
+                                }
+
+                                // input
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    TextField {
+                                        id: termInput
+                                        Layout.fillWidth: true
+                                        placeholderText: termPasswordMode ? "Password sudo…" : "Invia riga (Invio)"
+                                        echoMode: termPasswordMode ? TextInput.Password : TextInput.Normal
+                                        onAccepted: {
+                                            if (!termProc.running) return
+                                            termProc.write(text + "\n")
+                                            text = ""
+                                            if (termPasswordMode) termPasswordMode = false
+                                        }
+                                        background: Rectangle { color: ThemePkg.Theme.surface(0.06); radius: 10 }
+                                    }
+                                    Button {
+                                        text: "Invia"
+                                        enabled: termProc.running
+                                        onClicked: termInput.accepted()
+                                    }
+                                }
+                            }
+                        }
+                    }
 
 
                     Timer {

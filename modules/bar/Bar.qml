@@ -140,6 +140,7 @@ Variants {
                              : which === "notifications"  ? notificationsComp
                              : which === "power"          ? powerComp
                              : which === "arch"           ? archComp
+                             : which === "wallpaper"      ? wallpaperComp
                              : null;
                     }
 
@@ -1188,7 +1189,14 @@ Variants {
                                         cursorShape: Qt.PointingHandCursor
                                         onEntered: parent.hovered = true
                                         onExited:  parent.hovered = false
-                                        onClicked: runScript(changeWallpaperScript)
+                                        onClicked: {
+                                            if (switcher.shownOverlay === "wallpaper") {
+                                                switcher.close();
+                                            } else {
+                                                switcher.open("wallpaper");
+                                            }
+                                        }
+
                                     }
                                     ToolTip.visible: maWall.containsMouse
                                     ToolTip.delay: 250
@@ -1272,6 +1280,212 @@ Variants {
                     }
                 }
             }
+
+            // === Wallpaper Picker Overlay ===
+            Component {
+                id: wallpaperComp
+                Item {
+                    anchors.fill: parent
+                    
+
+
+
+                    // ---- MODEL ----
+                    ListModel { id: wallpapersModel }
+
+                    // Elenco non ricorsivo da ~/Pictures/Wallpapers
+                    property string listCmd: "find \"$HOME/Pictures/Wallpapers\" -follow -regextype posix-extended -type f -iregex \".*\\.(jpe?g|png|webp|bmp|gif|avif|heic)$\" -printf \"%P\\t%p\\n\" | LC_ALL=C sort"
+
+
+
+
+                    // helper: quoting sicuro per bash (gestisce anche gli apostrofi nel path)
+                    function shQuote(s) {
+                        return "'" + String(s).replace(/'/g, "'\"'\"'") + "'";
+                    }
+
+                    function applyWallpaper(absPath) {
+                        const cmd = "$HOME/.config/swaybg/wallpaper.sh " + shQuote(absPath);
+                        setProc.exec(["bash", "-lc", cmd]);
+                    }
+
+
+                    Component.onCompleted: {
+                        wallpapersModel.clear();
+                        listProc.exec(["bash","-lc", listCmd]);
+                    }
+
+                    // ---- PROCESSES ----
+                    Process {
+                        id: listProc
+                        stdout: SplitParser {
+                            splitMarker: "\n"
+                            onRead: (line) => {
+                                if (!line || line.trim().length === 0) return;
+                                const parts = line.split("\t");
+                                if (parts.length < 2) return;
+                                wallpapersModel.append({
+                                    name: parts[0],
+                                    path: parts[1],
+                                    url: "file://" + parts[1]
+                                });
+                            }
+                        }
+                    }
+                    Process {
+                        id: setProc
+                        onExited: function() { switcher.close(); }
+                    }
+
+                    // ---- OVERLAY LAYOUT ----
+                    Rectangle {
+                        id: panel
+                        width:  Math.min(parent.width  * 0.85, 1200)
+                        height: Math.min(parent.height * 0.80, 820)
+                        anchors.centerIn: parent
+                        radius: 14
+                        color: workspaceInactiveColor
+                        border.color: border
+                        border.width: 1
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 32
+                                spacing: 12
+
+                                Text {
+                                    text: "Choose wallpaper"
+                                    color: moduleFontColor
+                                    font.pixelSize: 16
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+                                Rectangle {
+                                    radius: 8; width: 28; height: 28
+                                    color: workspaceActiveColor
+                                    border.color: moduleBorderColor
+                                    Text { anchors.centerIn: parent; text: "✕"; color: moduleFontColor; font.pixelSize: 14 }
+                                    MouseArea { anchors.fill: parent; onClicked: switcher.close(); hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
+                                }
+
+                            }
+                            Flickable {
+                                id: scroller
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                clip: true
+
+                                // evita “buco” a destra: mai meno largo dello scroller
+                                contentWidth:  Math.max(grid.implicitWidth,  width)
+                                contentHeight: grid.implicitHeight
+                                interactive: true
+
+                                ScrollBar.vertical: ScrollBar {
+                                    id: vbar
+                                    policy: ScrollBar.AsNeeded
+                                    hoverEnabled: true
+                                    implicitWidth: 10
+                                    minimumSize: 0.08
+                                    // attiva le transizioni quando si muove/hover/drag
+                                    active: hovered || pressed || scroller.moving
+
+                                    // binario (track)
+                                    background: Rectangle {
+                                        anchors.fill: parent
+                                        radius: width/2
+                                        color: moduleBorderColor
+                                        border.color: moduleBorderColor
+                                        opacity: vbar.active ? 1.0 : 0.7
+                                    }
+
+                                    // thumb (parte che scorre) con colore interattivo
+                                    contentItem: Rectangle {
+                                        radius: width/2
+                                        border.width: 1
+                                        border.color: moduleBorderColor
+                                        color: moduleFontColor
+                                    }
+                                }
+
+
+                                Grid {
+                                    id: grid
+                                    // parametri card
+                                    property int cardW: 248
+                                    spacing: 12
+
+                                    // ancoriamo in alto a sinistra del contenuto
+                                    anchors.left: parent.left
+                                    anchors.top:  parent.top
+
+                                    // colonne sulla larghezza reale dello scroller (meno un piccolo margine)
+                                    columns: Math.max(1, Math.floor( (scroller.width - spacing) / (cardW + spacing) ))
+
+                                    Repeater {
+                                        model: wallpapersModel
+                                        delegate: Item {
+                                            width: grid.cardW
+                                            height: 168 + 26
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                radius: 16
+                                                color: workspaceInactiveColor
+                                                border.color: moduleBorderColor
+                                                border.width: 1
+                                                clip: true
+                                                Image {
+                                                    anchors.fill: parent
+                                                    anchors.margins: 4
+                                                    fillMode: Image.PreserveAspectCrop
+                                                    asynchronous: true
+                                                    cache: true
+                                                    source: "file:" + model.path
+                                                    sourceSize.width: 1024
+                                                    sourceSize.height: 1024
+                                                }
+                                                Rectangle {
+                                                    anchors.left: parent.left
+                                                    anchors.right: parent.right
+                                                    anchors.bottom: parent.bottom
+                                                    height: 26
+                                                    color: ThemePkg && ThemePkg.Theme
+                                                        ? ThemePkg.Theme.withAlpha(workspaceActiveColor, 0.6)  // 60% opaco
+                                                        : workspaceActiveColor
+                                                    Text {
+                                                        anchors.fill: parent
+                                                        anchors.margins: 8
+                                                        verticalAlignment: Text.AlignVCenter
+                                                        elide: Text.ElideRight
+                                                        text: model.name
+                                                        color: moduleColor
+                                                        font.pixelSize: 12
+                                                    }
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: applyWallpaper(model.path)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+
+
+                        }
+                    }
+                }
+            }
+
 
             // ----------------
             // Pannello principale

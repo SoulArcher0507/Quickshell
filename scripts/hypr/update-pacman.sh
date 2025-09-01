@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
+# Aggiorna pacchetti repo (pacman) e alla fine stampa solo i nomi aggiornati
 set -euo pipefail
 
-elevate() {
-  if command -v sudo >/dev/null 2>&1; then
-    sudo -n "$@" || sudo "$@"
-  elif command -v doas >/dev/null 2>&1; then
-    doas "$@"
-  elif command -v pkexec >/dev/null 2>&1; then
-    pkexec "$@"
-  else
-    echo "No sudo/doas/pkexec available." >&2
-    exit 1
-  fi
-}
-
-# If user uses yay/paru we can restrict to repo updates only; otherwise pacman
-if command -v yay >/dev/null 2>&1; then
-  yay  -Syu --repo --noconfirm --noeditmenu --nodiffmenu --cleanafter --removemake --answerclean All --answerdiff None
-elif command -v paru >/dev/null 2>&1; then
-  paru -Syu --repo --noconfirm --cleanafter --removemake --skipreview
-else
-  elevate pacman -Syu --noconfirm --needed
+if ! command -v pacman >/dev/null 2>&1; then
+  echo "pacman non trovato" >&2
+  exit 1
 fi
+
+# Snapshot dei pacchetti aggiornabili (solo nomi)
+before="$(pacman -Qu --quiet 2>/dev/null || true)"
+
+# Se non c'è nulla da aggiornare, esci silenzioso
+[[ -z "${before}" ]] && exit 0
+
+# Aggiorna (reindirizza output su stderr)
+sudo pacman -Syu --noconfirm 1>&2
+
+# Stampa solo i nomi
+printf "%s\n" "${before}"
+

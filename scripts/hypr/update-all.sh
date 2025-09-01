@@ -1,36 +1,46 @@
 #!/usr/bin/env bash
+# Aggiorna pacman+aur+flatpak e stampa solo i nomi/ID aggiornati
 set -euo pipefail
 
-BASE="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/scripts"
-LOCK="/tmp/hypr-update.lock"
+has(){ command -v "$1" >/dev/null 2>&1; }
 
-# prevent concurrent runs
-exec 9>"$LOCK"
-if ! flock -n 9; then
-  echo "Another update is already running."
-  exit 0
+# --- Snapshot BEFORE ---
+pac_before="$(pacman -Qu --quiet 2>/dev/null || true)"
+
+aur_before=""
+if   has yay;    then aur_before="$(yay -Qua --quiet 2>/dev/null || true)"
+elif has paru;   then aur_before="$(paru -Qua --quiet 2>/dev/null || true)"
+elif has pikaur; then aur_before="$(pikaur -Qua 2>/dev/null | awk '{print $1}' || true)"
 fi
 
-echo "[repo] Updating official repositories..."
-if [ -x "${BASE}/update-pacman.sh" ]; then
-  "${BASE}/update-pacman.sh"
+flat_before=""
+if has flatpak; then
+  flat_before="$(flatpak remote-ls --updates --columns=application 2>/dev/null | awk 'NF' || true)"
+fi
+
+# --- UPDATE ---
+if has yay; then
+  # yay può aggiornare repo+aur insieme
+  yay -Syu --noconfirm 1>&2
+elif has paru; then
+  paru -Syu --noconfirm 1>&2
 else
-  # Fallback: just run pacman
-  if command -v sudo >/dev/null 2>&1; then
-    sudo -n pacman -Syu --noconfirm || sudo pacman -Syu --noconfirm
-  elif command -v doas >/dev/null 2>&1; then
-    doas pacman -Syu --noconfirm
-  elif command -v pkexec >/dev/null 2>&1; then
-    pkexec pacman -Syu --noconfirm
-  else
-    echo "No sudo/doas/pkexec available to elevate pacman." >&2
+  # fallback: pacman poi (eventuale) helper solo AUR
+  if [[ -n "${pac_before}" ]]; then
+    sudo pacman -Syu --noconfirm 1>&2
+  fi
+  if command -v pikaur >/dev/null 2>&1 && [[ -n "${aur_before}" ]]; then
+    pikaur -Sua --noconfirm 1>&2
   fi
 fi
 
-echo "[aur] Updating AUR packages..."
-[ -x "${BASE}/update-aur.sh" ] && "${BASE}/update-aur.sh" || true
+if [[ -n "${flat_before}" ]] && has flatpak; then
+  flatpak update -y --noninteractive 1>&2
+fi
 
-echo "[flatpak] Updating Flatpak apps..."
-[ -x "${BASE}/update-flatpak.sh" ] && "${BASE}/update-flatpak.sh" || true
+# --- OUTPUT SOLO NOMI/ID ---
+# NB: se uno snapshot era vuoto, non stampa nulla per quella categoria
+{ [[ -n "${pac_before}"  ]] && printf "%s\n" "${pac_before}"; } || true
+{ [[ -n "${aur_before}"  ]] && printf "%s\n" "${aur_before}"; } || true
+{ [[ -n "${flat_before}" ]] && printf "%s\n" "${flat_before}"; } || true
 
-echo "All updates completed."

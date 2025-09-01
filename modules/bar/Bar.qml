@@ -446,7 +446,7 @@ Variants {
                             " || (command -v gnome-terminal >/dev/null && gnome-terminal -- bash -lc \\\"" + path + hold + "\\\")" +
                             " || (command -v xterm >/dev/null && xterm -e bash -lc \\\"" + path + hold + "\\\")";
 
-                        Hyprland.dispatch("exec " + cmd);
+                        Hyprland.dispatch('exec [float;center;size 60% 70%] ' + cmd);
                     }
 
 

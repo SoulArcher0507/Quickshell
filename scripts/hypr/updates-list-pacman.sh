@@ -1,30 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-has() { command -v "$1" >/dev/null 2>&1; }
-
-if has yay; then
-  yay -Sy --color never >/dev/null 2>&1 || true
-  yay -Qu --repo --color never 2>/dev/null
+# 1) Migliore: pacman-contrib -> checkupdates (zero sudo)
+if command -v checkupdates >/dev/null 2>&1; then
+  # "pkg ver -> newver"  -> prendi solo il nome
+  checkupdates 2>/dev/null | awk '{print $1}' | sort -u
   exit 0
 fi
 
-if has paru; then
-  paru -Sy --color never >/dev/null 2>&1 || true
-  paru -Qu --repo --color never 2>/dev/null
-  exit 0
-fi
+# 2) Fallback robusto senza sudo: DB temporaneo + symlink del DB locale
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
 
-if has checkupdates; then
-  checkupdates 2>/dev/null
-  exit 0
-fi
+mkdir -p "$tmp"/{local,cache}
+# Usa il DB locale in sola lettura (non serve sudo)
+ln -s /var/lib/pacman/local "$tmp/local" 2>/dev/null || true
 
-# Fallback: DB temporaneo + parsing dei nomi dai .pkg.tar.*
-tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+# Aggiorna solo i repo nel db temporaneo
 pacman -Sy --dbpath "$tmp" --logfile /dev/null >/dev/null 2>&1 || true
-pacman -Sup --dbpath "$tmp" 2>/dev/null \
-| sed -E 's#.*/##' \
-| sed -E 's/\.pkg\.tar\.[^.]+$//' \
-| sed -E 's/-[0-9][^-]*-[^-]*$//' \
-| sort -u
+
+# Elenco aggiornabili e tieni solo il nome
+pacman -Qu --dbpath "$tmp" 2>/dev/null | awk '{print $1}' | sort -u || true
+
+exit 0
+

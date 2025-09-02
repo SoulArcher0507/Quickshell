@@ -21,9 +21,13 @@ Item {
     readonly property color fg:        hasTheme ? ThemePkg.Theme.foreground     : "#eaeaea"
     readonly property color accent:    hasTheme ? ThemePkg.Theme.accent         : "#6aaeff"
     readonly property color borderCol: hasTheme ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12) : "#2a2a2a"
+    readonly property color moduleBorderColor: hasTheme ? ThemePkg.Theme.mix(ThemePkg.Theme.background, ThemePkg.Theme.foreground, 0.35) : "#505050"
+    readonly property color moduleFontColor:   hasTheme ? ThemePkg.Theme.accent : "#7aa2f7"
+
 
     // ===== GEOMETRIA =====
-    property int topMarginPx: 48
+    property int defaultTopMarginPx: 0   // se vuoi sotto la bar: metti qui l’altezza della bar (es. 48)
+    property int topMarginPx: 0
     property int minListHeight: 180
     property int maxListHeight: 420
     property int minCardWidth: 360
@@ -37,30 +41,46 @@ Item {
     Io.IpcHandler {
         target: "cliphist"
 
-        // typed functions are important
         function show(): void {
-            // close Arch Tools if present, then open
+            // chiudi Arch Tools e posiziona al margine “di default”
+            topMarginPx = defaultTopMarginPx
             Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
             win.visible = true
             listModel.reload()
+            search.forceActiveFocus()
         }
-        // open and set the top margin in one call (used by Arch Tools)
+
         function showAt(px: int): void {
+            // apertura con margine esplicito (usata dagli Arch Tools)
             topMarginPx = px
             Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
             win.visible = true
             listModel.reload()
+            search.forceActiveFocus()
         }
-        function hide(): void   { win.visible = false }
+
         function toggle(): void {
-            // also close Arch Tools if we’re opening
-            if (!win.visible) Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
-            win.visible = !win.visible
-            if (win.visible) listModel.reload()
+            if (win.visible) {
+                win.visible = false
+                return
+            }
+            // se stiamo aprendo da scorciatoia, forziamo sempre il posizionamento
+            topMarginPx = defaultTopMarginPx
+            Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
+            win.visible = true
+            listModel.reload()
+            search.forceActiveFocus()
         }
+
+
+        function hide(): void   { win.visible = false }
         function opened(): bool { return win.visible }
     }
 
+
+    function stripIdPrefix(s) {
+        return String(s || "").replace(/^\s*\d+\s+/, "");
+    }
 
 
     // ===== SCRIM a schermo intero (chiude su click) =====
@@ -102,7 +122,7 @@ Item {
             height: Math.min(maxCardHeight, content.implicitHeight + 16)   
             radius: 14
             color: bg
-            border.color: borderCol
+            border.color: moduleBorderColor
             border.width: 1
 
             ColumnLayout {
@@ -116,10 +136,10 @@ Item {
                     Layout.fillWidth: true
                     spacing: 8
                     Label {
-                        text: "Clipboard history"
-                        color: fg
-                        font.bold: true
-                        font.pixelSize: 15
+                        text: "Clipboard History"
+                        color: moduleFontColor
+                        font.pixelSize: 14
+                        font.family: "Fira Sans Semibold"
                     }
                     Item { Layout.fillWidth: true }
                     Button { text: "Clear all"; onClicked: confirmClear.open() }
@@ -153,46 +173,92 @@ Item {
                     model: cliphistModel
 
                     delegate: Rectangle {
+                        id: row
                         width: list.width
-                        height: Math.max(40, txt.implicitHeight + 16)
-                        radius: 10
-                        color: hovered ? ThemePkg.Theme.withAlpha(fg, 0.06) : "transparent"
-                        border.color: ThemePkg.Theme.withAlpha(fg, hovered ? 0.18 : 0.10)
+                        color: "transparent"
+                        radius: 8
                         border.width: 1
+                        border.color: ThemePkg.Theme.withAlpha(moduleBorderColor, hovered ? 1.0 : 0.6)
+                        implicitHeight: Math.max(24, textItem.implicitHeight + 12)
+
                         property bool hovered: false
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.margins: 8
+                            anchors.margins: 6
                             spacing: 8
 
-                            Label {
-                                text: model.preview && model.preview.startsWith("[img]") ? "🖼️" : "📋"
-                                color: fg
-                                Layout.alignment: Qt.AlignTop
+                            // ==== NUMERIC BADGE (decrescente) ====
+                            Rectangle {
+                                id: badge
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.preferredWidth: Math.max(28, badgeText.implicitWidth + 10)
+                                width: Layout.preferredWidth
+                                height: 20
+                                radius: 6
+                                color: ThemePkg.Theme.surface(0.10)
+                                border.color: moduleBorderColor
+                                border.width: 1
+
+                                Text {
+                                    id: badgeText
+                                    anchors.centerIn: parent
+                                    // 1° = N, 2° = N-1, ... (N = cliphistModel.count)
+                                    text: (cliphistModel ? (cliphistModel.count - index) : 0)
+                                    color: moduleFontColor
+                                    font.pixelSize: 12
+                                }
                             }
 
+                            // ==== TESTO DELL'ELEMENTO ====
                             Text {
-                                id: txt
+                                id: textItem
                                 Layout.fillWidth: true
-                                text: model.preview
+                                text: stripIdPrefix(model.line)   // <— prima era: model.line
                                 color: fg
                                 wrapMode: Text.Wrap
-                                maximumLineCount: 4
                                 elide: Text.ElideRight
                             }
+
                         }
 
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
-                            onEntered: parent.hovered = true
-                            onExited: parent.hovered = false
+                            cursorShape: Qt.PointingHandCursor
+                            onEntered: row.hovered = true
+                            onExited:  row.hovered = false
                             onClicked: actions.copyItem(model.line)
                         }
                     }
 
-                    ScrollBar.vertical: ScrollBar { }
+
+                    ScrollBar.vertical: ScrollBar {
+                        id: vbar
+                        policy: ScrollBar.AsNeeded
+                        hoverEnabled: true
+                        implicitWidth: 10
+                        minimumSize: 0.08
+                        active: hovered || pressed || list.moving
+
+                        // track
+                        background: Rectangle {
+                            anchors.fill: parent
+                            radius: width/2
+                            color: moduleBorderColor
+                            border.color: moduleBorderColor
+                            opacity: vbar.active ? 1.0 : 0.7
+                        }
+
+                        // thumb
+                        contentItem: Rectangle {
+                            radius: width/2
+                            border.width: 1
+                            border.color: moduleBorderColor
+                            color: moduleFontColor
+                        }
+                    }
+
                 }
 
                 // Footer
@@ -263,15 +329,20 @@ Item {
         }
     }
                     
+    Io.Process { id: copyProc }
 
 
     // ===== ACTIONS =====
     QtObject {
         id: actions
-        function shQuote(s) { return "'" + String(s).replace(/'/g, "'\"'\"'") + "'" }
+        function shQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
         function copyItem(line) {
-            Io.execDetached(["sh","-lc", "printf %s " + shQuote(String(line)) + " | cliphist decode | wl-copy"])
+            if (!line) return
+            const cmd = "printf %s " + shQuote(line) + " | cliphist decode | wl-copy"
+            copyProc.exec(["sh", "-lc", cmd])
+            win.visible = false     // <- chiudi subito dopo aver lanciato la copia
         }
+
         function pasteItem(line) {
             const sh = `
 printf %s ${shQuote(String(line))} | cliphist decode | wl-copy

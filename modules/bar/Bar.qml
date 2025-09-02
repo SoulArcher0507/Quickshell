@@ -1270,7 +1270,11 @@ Variants {
                                         cursorShape: Qt.PointingHandCursor
                                         onEntered: parent.hovered = true
                                         onExited:  parent.hovered = false
-                                        onClicked: Quickshell.execDetached(["qs","ipc","call","cliphist","show"])
+                                        onClicked: {
+                                            Quickshell.execDetached(["qs","ipc","call","archtools","hide"])       // chiudi Arch Tools
+                                            Quickshell.execDetached(["qs","ipc","call","cliphist","showAt","0"])  // apri Cliphist allineato in alto
+                                        }
+
                                     }
                                     ToolTip.visible: maClip.containsMouse
                                     ToolTip.delay: 250
@@ -1346,7 +1350,7 @@ Variants {
                         anchors.centerIn: parent
                         radius: 14
                         color: workspaceInactiveColor
-                        border.color: border
+                        border.color: moduleBorderColor
                         border.width: 1
 
                         ColumnLayout {

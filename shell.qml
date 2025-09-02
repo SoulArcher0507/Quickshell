@@ -61,6 +61,7 @@ ShellRoot {
     VolumeOverlay { }
     QSMod.CliphistPopup {
         // offset per stare sotto la barra (adatta se la tua bar è più alta)
+        id: cliphistPopup
         topMarginPx: 48
     }
 }

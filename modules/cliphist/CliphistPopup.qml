@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io as Io 
 import "../theme" as ThemePkg
-
+import Quickshell.Io
 
 
 /* Popup Cliphist: overlay top-right, click fuori = chiudi */
@@ -30,6 +30,39 @@ Item {
     property int maxCardWidth: 560
     property int maxCardHeight: 680   
 
+    property alias isOpen: win.visible
+    property int contentMaxHeight: 420
+
+
+    Io.IpcHandler {
+        target: "cliphist"
+
+        // typed functions are important
+        function show(): void {
+            // close Arch Tools if present, then open
+            Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
+            win.visible = true
+            listModel.reload()
+        }
+        // open and set the top margin in one call (used by Arch Tools)
+        function showAt(px: int): void {
+            topMarginPx = px
+            Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
+            win.visible = true
+            listModel.reload()
+        }
+        function hide(): void   { win.visible = false }
+        function toggle(): void {
+            // also close Arch Tools if we’re opening
+            if (!win.visible) Quickshell.execDetached(["qs","ipc","call","archtools","hide"])
+            win.visible = !win.visible
+            if (win.visible) listModel.reload()
+        }
+        function opened(): bool { return win.visible }
+    }
+
+
+
     // ===== SCRIM a schermo intero (chiude su click) =====
     PanelWindow {
         id: scrim
@@ -52,18 +85,21 @@ Item {
     PanelWindow {
         id: win
         visible: false
+        width:  card.width
+        height: card.height 
         
         color: "transparent"
         anchors { top: true; right: true }
         margins { top: topMarginPx; right: 12 }
 
-        onVisibleChanged: if (visible) listModel.reload()
+        onVisibleChanged: if (visible) { listModel.reload(); search.forceActiveFocus(); }
+
 
         Rectangle {
             id: card
             anchors.right: parent.right
             width:  Math.max(minCardWidth, Math.min(maxCardWidth, content.implicitWidth + 16))
-            height: Math.min(maxCardHeight, content.implicitHeight + 16)   // 👈 FIX: diamo un'altezza vera
+            height: Math.min(maxCardHeight, content.implicitHeight + 16)   
             radius: 14
             color: bg
             border.color: borderCol
@@ -87,23 +123,30 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     Button { text: "Clear all"; onClicked: confirmClear.open() }
-                    Button { text: "Close"; onClicked: win.visible = false }
                 }
 
                 // Search
                 TextField {
                     id: search
                     Layout.fillWidth: true
-                    placeholderText: "Cerca…"
+                    placeholderText: "Search…"
                     color: fg
                     onTextChanged: listModel.applyFilter(text)
+                    Keys.onReturnPressed: {
+                        if (cliphistModel.count > 0) {
+                            // copia il primo elemento attualmente visibile nella lista
+                            const first = cliphistModel.get(0)
+                            if (first && first.line) actions.copyItem(first.line)
+                        }
+                    }
+                    Keys.onEscapePressed: win.visible = false
                 }
 
                 // Lista: contribuisce all'implicitHeight
                 ListView {
                     id: list
                     Layout.fillWidth: true
-                    implicitHeight: Math.min(maxListHeight, Math.max(minListHeight, contentHeight))
+                    implicitHeight: Math.min(contentHeight, root.contentMaxHeight)
                     clip: true
                     spacing: 4
                     boundsBehavior: Flickable.StopAtBounds
@@ -138,13 +181,6 @@ Item {
                                 maximumLineCount: 4
                                 elide: Text.ElideRight
                             }
-
-                            RowLayout {
-                                spacing: 6
-                                Button { text: "Copy";  onClicked: actions.copyItem(model.line) }
-                                Button { text: "Paste"; onClicked: actions.pasteItem(model.line) }
-                                Button { text: "Del";   onClicked: actions.deleteItem(model.line) }
-                            }
                         }
 
                         MouseArea {
@@ -162,9 +198,8 @@ Item {
                 // Footer
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: `${cliphistModel.count} elementi`; color: ThemePkg.Theme.withAlpha(fg, 0.7) }
+                    Label { text: `${cliphistModel.count} items`; color: ThemePkg.Theme.withAlpha(fg, 0.7) }
                     Item { Layout.fillWidth: true }
-                    Button { text: "Refresh"; onClicked: listModel.reload() }
                 }
             }
         }
@@ -192,26 +227,43 @@ Item {
                 if (!needle || e.preview.toLowerCase().includes(needle)) cliphistModel.append(e)
             }
         }
-        function applyFilter(q) { rebuildFiltered(q) }
+        property var _allItems: []
+        property var _filtered: []
+
+        function applyFilter(q) {
+            const needle = (q || "").toLowerCase()
+            root._filtered = !needle
+                ? root._allItems
+                : root._allItems.filter(l => l.toLowerCase().indexOf(needle) !== -1)
+        }
+
+        function refreshList() {
+            // lista semplice (1 riga per item)
+            procList.exec(["cliphist", "list"])
+        }
+
         function reload() { procList.exec(["cliphist","list"]) }
     }
 
-    Io.Process { id: procList }                 // 👈 tipi con alias
-    Io.StdioCollector {
-        id: collector
-        
-        waitForEnd: true
-        onStreamFinished: {
-            const lines = String(text||"").split("\n").filter(l => l.trim().length)
-            const items = []
-            for (let i=0; i<lines.length; i++) {
-                const e = listModel.lineToEntry(lines[i])
-                if (e) items.push(e)
+    Io.Process {
+        id: procList
+        stdout: Io.StdioCollector {
+            id: collector
+            waitForEnd: true
+            onStreamFinished: {
+                const lines = String(text||"").split("\n").filter(l => l.trim().length)
+                const items = []
+                for (let i=0; i<lines.length; i++) {
+                    const e = listModel.lineToEntry(lines[i])
+                    if (e) items.push(e)
+                }
+                listModel.all = items
+                listModel.rebuildFiltered(search.text)
             }
-            listModel.all = items
-            listModel.rebuildFiltered(search.text)
         }
     }
+                    
+
 
     // ===== ACTIONS =====
     QtObject {
@@ -236,12 +288,26 @@ if command -v wtype >/dev/null 2>&1; then wtype -M ctrl v -m ctrl; fi`
         }
     }
 
+    Timer {
+        id: autoRefresh
+        interval: 1500          // 1.5s; aumenta se vuoi meno frequente (es. 3000)
+        repeat: true
+        running: win.visible    // solo quando la finestra è aperta
+        triggeredOnStart: true  // primo refresh immediato
+        onTriggered: listModel.reload()
+    }
+
+
     Dialog {
         id: confirmClear
         modal: true
         standardButtons: Dialog.Ok | Dialog.Cancel
-        title: "Svuota intera cronologia?"
-        contentItem: Label { text: "Questa azione rimuove TUTTI gli elementi."; color: fg; wrapMode: Text.Wrap; padding: 12 }
+        title: "Clear entire history?"
+        contentItem: Label {
+            text: "This action will remove all items."
+            color: fg; wrapMode: Text.Wrap; padding: 12
+        }
+
         onAccepted: actions.wipeAll()
     }
 }

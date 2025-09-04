@@ -41,7 +41,7 @@ Rectangle {
             if ("contentWidth"  in w) w.contentWidth  = popupWidth
         }
     }
-
+    
     Component.onCompleted: {
         _applyWidth()
         // sincronizza il runtime col valore persistito

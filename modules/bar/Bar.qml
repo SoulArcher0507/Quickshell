@@ -11,8 +11,8 @@ import Quickshell.Io
 import "../theme" as ThemePkg
 import Quickshell.Services.UPower   
 import QtQuick.Layouts 1.15
-
-
+import Quickshell.Io as Io
+import QtQuick.Controls as QQC2
 
 
 // Create a proper panel window
@@ -39,10 +39,12 @@ Variants {
             // ---------------------------
             PanelWindow {
                 id: overlayWindow
+                focusable: true
                 screen: delegateRoot.modelData
                 anchors { top: true; left: true; right: true; bottom: true }
                 color: "transparent"
                 visible: (switcher.shownOverlay !== "") || (switcher.pendingIndex !== -1)
+                onVisibleChanged: if (visible) switcher.forceActiveFocus()
 
                 // Click-outside per chiudere
                 MouseArea {
@@ -917,6 +919,169 @@ Variants {
                                 font.family: "Fira Sans Semibold"
                             }
 
+                            // ===== Arch Tools • RESOURCES (cloned from updatesGroup) =====
+                            // ===== Arch Tools • RESOURCES (robusto nel ColumnLayout) =====
+                            Rectangle {
+                                id: resourcesGroup
+                                // stile card come gli update
+                                radius: 10
+                                color: ThemePkg.Theme.surface(0.06)
+                                border.color: moduleBorderColor
+                                border.width: 1
+
+                                // >>> chiave: lasciare che il ColumnLayout decida la larghezza <<<
+                                Layout.fillWidth: true
+                                // altezza dalla colonna interna (così non collassa mai a 0)
+                                property int pad: 8
+                                implicitHeight: resourcesCol.implicitHeight + pad * 2
+                                visible: true
+                                z: 1
+
+                                // ===== poll script (immutato) =====
+                                property var stats: ({
+                                    cpu: { total: 0, per_core: [] },
+                                    gpu: { name: "", total: 0, detail: [] },
+                                    mem: { used_gb: 0, total_gb: 0, percent: 0 },
+                                    disk:{ root_percent: 0, home_percent: 0 }
+                                })
+
+                                Timer {
+                                    id: resTimer
+                                    running: true; repeat: true; interval: 1500
+                                    onTriggered: if (!resProc.running) resProc.running = true
+                                }
+                                // usa le stesse import/tipi che usi già negli update (Io.Process o Process)
+                                Io.Process {
+                                    id: resProc
+                                    command: ["/bin/bash","-lc","$HOME/.config/hypr/scripts/resources-stat.sh"]
+                                    stdinEnabled: false
+                                    stdout: Io.StdioCollector {
+                                        waitForEnd: true
+                                        onStreamFinished: {
+                                            try {
+                                                const o = JSON.parse(text.trim());
+                                                if (o && o.cpu && o.mem && o.disk) resourcesGroup.stats = o;
+                                            } catch(e) { console.warn("resources json parse failed:", e, text); }
+                                            finally { resProc.running = false }
+                                        }
+                                    }
+                                    onExited: resProc.running = false
+                                }
+
+                                // ===== contenuto card =====
+                                Column {
+                                    id: resourcesCol
+                                    anchors.fill: parent
+                                    anchors.margins: resourcesGroup.pad
+                                    spacing: 10
+
+                                    Text {
+                                        text: "Resources"
+                                        color: moduleFontColor
+                                        font.pixelSize: 14
+                                        font.family: "Fira Sans Semibold"
+                                    }
+
+                                    GridLayout {
+                                        id: resGrid
+                                        columns: 2
+                                        columnSpacing: 12
+                                        rowSpacing: 12
+                                        Layout.fillWidth: true
+
+                                        // metà card con minimo — calcolato sulla larghezza reale del Grid
+                                        readonly property real cellW: Math.max(
+                                            180, (width - columnSpacing) / 2
+                                        )
+
+                                        // pill come quelle dei pacchetti (stesso sfondo/bordo)
+                                        component ResCell: Rectangle {
+                                            Layout.fillWidth: true
+                                            Layout.preferredWidth: resGrid.cellW
+                                            Layout.minimumWidth: 160
+                                            implicitWidth: 180
+                                            implicitHeight: 64
+
+                                            color: moduleColor
+                                            border.color: moduleBorderColor
+                                            border.width: 1
+                                            radius: 12   // angoli meno arrotondati come richiesto
+
+                                            property string title: ""
+                                            property string value: ""
+                                            property string tip: ""
+
+                                            HoverHandler { id: hov }
+                                            QQC2.ToolTip.visible: hov.hovered
+                                            QQC2.ToolTip.delay: 0
+                                            QQC2.ToolTip.timeout: 60000
+                                            QQC2.ToolTip.text: tip
+
+                                            // contenuto centrato
+                                            Column {
+                                                anchors.centerIn: parent
+                                                width: parent.width - 24
+                                                spacing: 6
+                                                Text {
+                                                    text: parent.parent.title
+                                                    color: ThemePkg.Theme.withAlpha(moduleFontColor, 0.8)
+                                                    font.pixelSize: 12
+                                                    width: parent.width
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    elide: Text.ElideRight
+                                                }
+                                                Text {
+                                                    text: parent.parent.value
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 20
+                                                    font.bold: true
+                                                    width: parent.width
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                        }
+
+                                        // CPU
+                                        ResCell {
+                                            title: "CPU"
+                                            value: Math.round(resourcesGroup.stats.cpu.total) + "%"
+                                            tip: resourcesGroup.stats.cpu.per_core.length
+                                                ? "Per-core:\n" + resourcesGroup.stats.cpu.per_core
+                                                    .map((v,i)=>"C"+i+": "+Math.round(v)+"%").join("   ")
+                                                : "Collecting per-core…"
+                                        }
+                                        // RAM (in GB come richiesto)
+                                        ResCell {
+                                            title: "RAM"
+                                            value: resourcesGroup.stats.mem.used_gb.toFixed(1) + " GB"
+                                            tip: "Used: " + resourcesGroup.stats.mem.used_gb.toFixed(1) +
+                                                " / " + resourcesGroup.stats.mem.total_gb.toFixed(1) + " GB"
+                                        }
+                                        // GPU
+                                        ResCell {
+                                            title: "GPU"
+                                            value: Math.round(resourcesGroup.stats.gpu.total) + "%"
+                                            tip: (resourcesGroup.stats.gpu.detail && resourcesGroup.stats.gpu.detail.length)
+                                                ? resourcesGroup.stats.gpu.detail
+                                                    .map(d=>d.name+": "+Math.round(d.percent)+"%").join("\n")
+                                                : (resourcesGroup.stats.gpu.name
+                                                    ? resourcesGroup.stats.gpu.name+" total: "+
+                                                    Math.round(resourcesGroup.stats.gpu.total)+"%"
+                                                    : "No GPU data")
+                                        }
+                                        // DISK
+                                        ResCell {
+                                            title: "DISK"
+                                            value: resourcesGroup.stats.disk.root_percent + "%"
+                                            tip: "/: " + resourcesGroup.stats.disk.root_percent + "%\n" +
+                                                "/home: " + resourcesGroup.stats.disk.home_percent + "%"
+                                        }
+                                    }
+                                }
+                            }
+
+
                             // ======================
                             // BLOCCO AGGIORNAMENTI
                             // ======================
@@ -1289,11 +1454,13 @@ Variants {
             // === Wallpaper Picker Overlay ===
             Component {
                 id: wallpaperComp
+                
+                
                 Item {
                     anchors.fill: parent
                     
 
-
+                    
 
                     // ---- MODEL ----
                     ListModel { id: wallpapersModel }

@@ -106,14 +106,18 @@ Item {
         id: win
         visible: false
         width:  card.width
-        height: card.height 
+        height: card.height
+        focusable: true
         
         color: "transparent"
         anchors { top: true; right: true }
         margins { top: topMarginPx; right: 12 }
 
         onVisibleChanged: if (visible) { listModel.reload(); search.forceActiveFocus(); }
-
+        // facciamo chiudere con ESC anche se il focus non è sulla search
+        Keys.onReleased: (e)=> {
+            if (e.key === Qt.Key_Escape) { win.visible = false; e.accepted = true }
+        }
 
         Rectangle {
             id: card
@@ -142,7 +146,32 @@ Item {
                         font.family: "Fira Sans Semibold"
                     }
                     Item { Layout.fillWidth: true }
-                    Button { text: "Clear all"; onClicked: confirmClear.open() }
+                    Button {
+                        id: clearAllBtn
+                        Layout.alignment: Qt.AlignRight
+                        visible: cliphistModel.count > 0
+                        text: "Clear all"
+
+                        // stesso look del Notifications "Clear all"
+                        background: Rectangle {
+                            radius: 8
+                            color: ThemePkg.Theme.surface(0.06)
+                            border.color: borderCol     // già definito nel file come bordo tenue
+                        }
+                        contentItem: Text {
+                            text: clearAllBtn.text
+                            color: ThemePkg.Theme.accent
+                            font.pixelSize: 12
+                            font.family: "Fira Sans Semibold"
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight
+                            padding: 8
+                        }
+
+                        onClicked: confirmClear.open()
+                    }
+
                 }
 
                 // Search

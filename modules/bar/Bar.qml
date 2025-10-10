@@ -29,6 +29,8 @@ Variants {
     readonly property color workspaceActiveFontColor:    ThemePkg.Theme.accent
     readonly property color workspaceInactiveFontColor:  moduleFontColor
 
+    
+
     delegate: Component {
         Item {
             id: delegateRoot
@@ -403,8 +405,8 @@ Variants {
                     anchors.fill: parent
 
                     // === Your scripts here ===
-                    property string changeWallpaperScript: "$HOME/.config/swaybg/wallpaper.sh"
-                    property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
+                    property string changeWallpaperScript: "$HOME/.config/swww/wallpaper.sh"
+                    property string toggleAutolockScript: "$HOME/.config/hypr/scripts/hyprlock.sh"
                     // property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
 
                     // === Nuovi script aggiornamenti (li fornisco nel prossimo messaggio) ===
@@ -767,106 +769,7 @@ Variants {
 
                     }
 
-                    // ===== Overlay terminale (stile finestra a destra) =====
-                    Rectangle {
-                        id: termOverlay
-                        anchors.fill: parent
-                        visible: termVisible
-                        z: 9999
-                        color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.background, 0.45)
-
-                        // click fuori chiude
-                        MouseArea { anchors.fill: parent; onClicked: termVisible = false }
-
-                        // card centrale
-                        Rectangle {
-                            id: termCard
-                            anchors.centerIn: parent
-                            width: Math.min(900, parent.width - 80)
-                            height: Math.min(560, parent.height - 80)
-                            radius: 14
-                            color: ThemePkg.Theme.surface(0.08)
-                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.14)
-                            border.width: 1
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 14
-                                spacing: 10
-
-                                // header
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    Text {
-                                        text: termTitle
-                                        color: ThemePkg.Theme.foreground
-                                        font.pixelSize: 16
-                                        font.family: "Fira Sans Semibold"
-                                        elide: Text.ElideRight
-                                        Layout.fillWidth: true
-                                    }
-
-                                    Button {
-                                        text: termProc.running ? "Stop" : "Chiudi"
-                                        onClicked: termProc.running ? termProc.signal(2) : (termVisible = false)
-                                        background: Rectangle {
-                                            radius: 8
-                                            color: ThemePkg.Theme.surface(0.16)
-                                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12)
-                                            border.width: 1
-                                        }
-                                    }
-                                }
-
-                                // output
-                                ScrollView {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 380
-                                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                                    TextArea {
-                                        id: termOutput
-                                        readOnly: true
-                                        wrapMode: TextArea.NoWrap
-                                        textFormat: TextEdit.PlainText
-                                        selectByMouse: true
-                                        persistentSelection: true
-                                        font.family: "monospace"
-                                        color: ThemePkg.Theme.foreground
-                                        background: Rectangle { color: ThemePkg.Theme.surface(0.06); radius: 10 }
-                                    }
-                                }
-
-                                // input
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    TextField {
-                                        id: termInput
-                                        Layout.fillWidth: true
-                                        placeholderText: termPasswordMode ? "Password sudo…" : "Invia riga (Invio)"
-                                        echoMode: termPasswordMode ? TextInput.Password : TextInput.Normal
-                                        onAccepted: {
-                                            if (!termProc.running) return
-                                            termProc.write(text + "\n")
-                                            text = ""
-                                            if (termPasswordMode) termPasswordMode = false
-                                        }
-                                        background: Rectangle { color: ThemePkg.Theme.surface(0.06); radius: 10 }
-                                    }
-                                    Button {
-                                        text: "Invia"
-                                        enabled: termProc.running
-                                        onClicked: termInput.accepted()
-                                    }
-                                }
-                            }
-                        }
-                    }
-
+                
 
                     Timer {
                         id: updatesPoll
@@ -919,178 +822,7 @@ Variants {
                                 font.family: "Fira Sans Semibold"
                             }
 
-                            // ===== Arch Tools • RESOURCES (cloned from updatesGroup) =====
-                            Rectangle {
-                                id: resourcesGroup
-                                // --- stessi bordi/angoli della card degli update ---
-                                radius: updatesGroup.radius
-                                color: updatesGroup.color
-                                border.width: updatesGroup.border.width
-                                border.color: updatesGroup.border.color
 
-                                // --- stesso modello di sizing della card degli update ---
-                                // (usa la stessa pad/col/spaziatura per farla “uguale”)
-                                property int pad: updatesGroup.pad ?? 8
-                                implicitWidth: resourcesCol.implicitWidth + pad * 2
-                                implicitHeight: resourcesCol.implicitHeight + pad * 2
-
-
-                                // se il contenitore usa ColumnLayout, di solito c'è:
-                                Layout.fillWidth: true
-
-                                // ====== POLLING SCRIPT ======
-                                // mantiene gli ultimi valori buoni (niente flash a 0)
-                                property var stats: ({
-                                    cpu: { total: 0, per_core: [] },
-                                    gpu: { name: "", total: 0, detail: [] },
-                                    mem: { used_gb: 0, total_gb: 0, percent: 0 },
-                                    disk:{ root_percent: 0, home_percent: 0 }
-                                })
-
-                                Timer {
-                                    id: resTimer
-                                    running: true
-                                    repeat: true
-                                    interval: 1500
-                                    onTriggered: if (!resProc.running) resProc.running = true
-                                }
-                                Io.Process {
-                                    id: resProc
-                                    // usa lo stesso runner degli update (bash -lc) ma puntato allo script
-                                    command: ["/bin/bash","-lc","$HOME/.config/hypr/scripts/resources-stat.sh"]
-                                    stdinEnabled: false
-                                    stdout: Io.StdioCollector {
-                                        waitForEnd: true
-                                        onStreamFinished: {
-                                            try {
-                                                const obj = JSON.parse(text.trim());
-                                                if (obj && obj.cpu && obj.mem && obj.disk) resourcesGroup.stats = obj;
-                                            } catch (e) {
-                                                console.warn("resources json parse failed:", e, text);
-                                            } finally {
-                                                resProc.running = false;
-                                            }
-                                        }
-                                    }
-                                    onExited: resProc.running = false
-                                }
-
-                                // ====== CONTENUTO CARD (stesso layout della card updates) ======
-                                Column {
-                                    id: resCol
-                                    anchors.fill: parent
-                                    anchors.margins: resourcesGroup.pad
-                                    spacing: 10    // come nella card degli update
-
-                                    // --- header stile "Updates" ma con titolo Resources ---
-                                    Row {
-                                        spacing: 8
-                                        Layout.fillWidth: true
-                                        QQC2.Label {
-                                            text: "Resources"
-                                            font.pixelSize: 14
-                                            color: ThemePkg.Theme.foreground
-                                            opacity: 0.9
-                                        }
-                                        // se nella card Updates usi un pulsante chip/tondo a destra, puoi copiarlo qui;
-                                        // io non aggiungo controlli extra per non alterare la struttura.
-                                        Item { Layout.fillWidth: true } // spacer
-                                    }
-
-                                    // --- griglia 2x2 delle schede (stile “pill” uguale agli update-box) ---
-                                    GridLayout {
-                                        id: resGrid
-                                        columns: 2
-                                        columnSpacing: 12
-                                        rowSpacing: 12
-                                        Layout.fillWidth: true
-
-                                        // larghezza “a metà card”, con minimo come nelle box degli updates
-                                        readonly property real cellW: Math.max(180, (width - columnSpacing) / 2)
-
-                                        // pill riutilizzabile (stesso look delle box degli update)
-                                        component ResCell: Rectangle {
-                                            // *** QUI la differenza che evita la compressione ***
-                                            Layout.fillWidth: true
-                                            Layout.preferredWidth: resGrid.cellW
-                                            Layout.minimumWidth: 160
-                                            implicitWidth: 180
-                                            implicitHeight: 64
-
-                                            radius: 18
-                                            color: ThemePkg.Theme.surface(0.06)
-                                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12)
-                                            border.width: 1
-
-                                            property string title: ""
-                                            property string value: ""
-                                            property string tip: ""
-
-                                            HoverHandler { id: hov }
-                                            ToolTip.visible: hov.hovered
-                                            ToolTip.delay: 0
-                                            ToolTip.timeout: 60000
-                                            ToolTip.text: tip
-
-                                            Column {
-                                                anchors.fill: parent
-                                                anchors.margins: 12
-                                                spacing: 4
-                                                Text {
-                                                    text: parent.parent.title
-                                                    color: ThemePkg.Theme.withAlpha(moduleFontColor, 0.8)
-                                                    font.pixelSize: 12
-                                                    elide: Text.ElideRight
-                                                }
-                                                Text {
-                                                    text: parent.parent.value
-                                                    color: moduleFontColor
-                                                    font.pixelSize: 20
-                                                    font.bold: true
-                                                    elide: Text.ElideRight
-                                                }
-                                            }
-                                        }
-
-                                        // CPU
-                                        ResCell {
-                                            title: "CPU"
-                                            value: Math.round(resourcesGroup.stats.cpu.total) + "%"
-                                            tip: resourcesGroup.stats.cpu.per_core.length
-                                                ? "Per-core:\n" + resourcesGroup.stats.cpu.per_core
-                                                    .map((v,i)=>"C"+i+": "+Math.round(v)+"%").join("   ")
-                                                : "Collecting per-core…"
-                                        }
-                                        // RAM  (mostra i GB come da richiesta iniziale)
-                                        ResCell {
-                                            title: "RAM"
-                                            value: resourcesGroup.stats.mem.used_gb.toFixed(1) + " GB"
-                                            tip: "Used: " + resourcesGroup.stats.mem.used_gb.toFixed(1) +
-                                                " / " + resourcesGroup.stats.mem.total_gb.toFixed(1) + " GB"
-                                        }
-                                        // GPU
-                                        ResCell {
-                                            title: "GPU"
-                                            value: Math.round(resourcesGroup.stats.gpu.total) + "%"
-                                            tip: (resourcesGroup.stats.gpu.detail && resourcesGroup.stats.gpu.detail.length)
-                                                ? resourcesGroup.stats.gpu.detail
-                                                    .map(d=>d.name+": "+Math.round(d.percent)+"%").join("\n")
-                                                : (resourcesGroup.stats.gpu.name
-                                                    ? resourcesGroup.stats.gpu.name+" total: "+
-                                                    Math.round(resourcesGroup.stats.gpu.total)+"%"
-                                                    : "No GPU data")
-                                        }
-                                        // DISK  (main: / ; hover mostra anche /home)
-                                        ResCell {
-                                            title: "DISK"
-                                            value: resourcesGroup.stats.disk.root_percent + "%"
-                                            tip: "/: " + resourcesGroup.stats.disk.root_percent + "%\n" +
-                                                "/home: " + resourcesGroup.stats.disk.home_percent + "%"
-                                        }
-                                    }
-
-                                }
-                            }
 
                             // ======================
                             // BLOCCO AGGIORNAMENTI
@@ -1335,6 +1067,200 @@ Variants {
                                 }
                             }
 
+                            // ===== Arch Tools • RESOURCES (cloned from updatesGroup) =====
+                            Rectangle {
+                                id: resourcesGroup
+                                // --- stessi bordi/angoli della card degli update ---
+                                radius: updatesGroup.radius
+                                color: updatesGroup.color
+                                border.width: updatesGroup.border.width
+                                border.color: updatesGroup.border.color
+                                clip: true
+                                property real contentWidth: width - pad * 2
+                                property int pad: updatesGroup.pad ?? 8
+                                implicitWidth: resCol.implicitWidth + pad * 2
+                                implicitHeight: resCol.implicitHeight + pad * 2
+                                
+
+
+                                Layout.preferredWidth: updatesGroup ? updatesGroup.width : implicitWidth
+                                width: updatesGroup ? updatesGroup.width : implicitWidth
+
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                anchors.left: undefined
+                                anchors.right: undefined
+
+
+
+
+                                // ====== POLLING SCRIPT ======
+                                // mantiene gli ultimi valori buoni (niente flash a 0)
+                                property var stats: ({
+                                    cpu: { total: 0, per_core: [] },
+                                    gpu: { name: "", total: 0, detail: [] },
+                                    mem: { used_gb: 0, total_gb: 0, percent: 0 },
+                                    disk:{ root_percent: 0, home_percent: 0 }
+                                })
+
+                                Timer {
+                                    id: resTimer
+                                    running: true
+                                    repeat: true
+                                    interval: 1500
+                                    onTriggered: if (!resProc.running) resProc.running = true
+                                }
+                                Io.Process {
+                                    id: resProc
+                                    // usa lo stesso runner degli update (bash -lc) ma puntato allo script
+                                    command: ["/bin/bash","-lc","$HOME/.config/hypr/scripts/resources-stat.sh"]
+                                    stdinEnabled: false
+                                    stdout: Io.StdioCollector {
+                                        waitForEnd: true
+                                        onStreamFinished: {
+                                            try {
+                                                const obj = JSON.parse(text.trim());
+                                                if (obj && obj.cpu && obj.mem && obj.disk) resourcesGroup.stats = obj;
+                                            } catch (e) {
+                                                console.warn("resources json parse failed:", e, text);
+                                            } finally {
+                                                resProc.running = false;
+                                            }
+                                        }
+                                    }
+                                    onExited: resProc.running = false
+                                }
+
+                                // ====== CONTENUTO CARD (stesso layout della card updates) ======
+                                Column {
+                                    id: resCol
+                                    anchors.fill: parent
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    width: resourcesGroup.contentWidth
+                                    anchors.margins: resourcesGroup.pad
+                                    spacing: 10    // come nella card degli update
+
+                                    // --- header stile "Updates" ma con titolo Resources ---
+                                    Row {
+                                        spacing: 8
+                                        Layout.fillWidth: true
+
+                                        // se nella card Updates usi un pulsante chip/tondo a destra, puoi copiarlo qui;
+                                        // io non aggiungo controlli extra per non alterare la struttura.
+                                        Item { Layout.fillWidth: true } // spacer
+                                    }
+
+                                    // --- griglia 2x2 delle schede (stile “pill” uguale agli update-box) ---
+                                    GridLayout {
+                                        id: resGrid
+                                        columns: 2
+                                        columnSpacing: gap
+                                        rowSpacing: gap
+                                        Layout.fillWidth: true
+                                        anchors.left: undefined
+                                        anchors.right: undefined
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        
+
+
+
+                                        // larghezza “a metà card”, con minimo come nelle box degli updates
+                                        readonly property real cellW: Math.max(140, (width - columnSpacing) / 2)
+                                        width: cellW * 2 + columnSpacing
+                                        
+                                        // pill riutilizzabile (stesso look delle box degli update)
+                                        component ResCell: Rectangle {
+                                            // *** QUI la differenza che evita la compressione ***
+                                            
+                                            Layout.preferredWidth: resGrid.cellW
+
+                                            width: Layout.preferredWidth
+                                            Layout.fillWidth: false
+                                            
+
+
+
+                                            Layout.minimumWidth: 0
+                                            implicitWidth: resGrid.cellW
+                                            implicitHeight: 64
+
+                                            radius: 18
+                                            color: maUpdAll.containsMouse
+                                            ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08)
+                                            : moduleColor
+                                            border.color: (updTotal > 0 ? ThemePkg.Theme.accent : moduleBorderColor)
+                                            border.width: 1
+
+                                            property string title: ""
+                                            property string value: ""
+                                            property string tip: ""
+
+                                            HoverHandler { id: hov }
+                                            ToolTip.visible: hov.hovered
+                                            ToolTip.delay: 0
+                                            ToolTip.timeout: 60000
+                                            ToolTip.text: tip
+
+                                            Column {
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 4
+                                                Text {
+                                                    text: parent.parent.title
+                                                    color: ThemePkg.Theme.withAlpha(moduleFontColor, 0.8)
+                                                    font.pixelSize: 12
+                                                    elide: Text.ElideRight
+                                                }
+                                                Text {
+                                                    text: parent.parent.value
+                                                    color: moduleFontColor
+                                                    font.pixelSize: 20
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                }
+                                            }
+                                        }
+
+                                        // CPU
+                                        ResCell {
+                                            title: "CPU"
+                                            value: Math.round(resourcesGroup.stats.cpu.total) + "%"
+                                            tip: resourcesGroup.stats.cpu.per_core.length
+                                                ? "Per-core:\n" + resourcesGroup.stats.cpu.per_core
+                                                    .map((v,i)=>"C"+i+": "+Math.round(v)+"%").join("   ")
+                                                : "Collecting per-core…"
+                                        }
+                                        // RAM  (mostra i GB come da richiesta iniziale)
+                                        ResCell {
+                                            title: "RAM"
+                                            value: resourcesGroup.stats.mem.used_gb.toFixed(1) + " GB"
+                                            tip: "Used: " + resourcesGroup.stats.mem.used_gb.toFixed(1) +
+                                                " / " + resourcesGroup.stats.mem.total_gb.toFixed(1) + " GB"
+                                        }
+                                        // GPU
+                                        ResCell {
+                                            title: "GPU"
+                                            value: Math.round(resourcesGroup.stats.gpu.total) + "%"
+                                            tip: (resourcesGroup.stats.gpu.detail && resourcesGroup.stats.gpu.detail.length)
+                                                ? resourcesGroup.stats.gpu.detail
+                                                    .map(d=>d.name+": "+Math.round(d.percent)+"%").join("\n")
+                                                : (resourcesGroup.stats.gpu.name
+                                                    ? resourcesGroup.stats.gpu.name+" total: "+
+                                                    Math.round(resourcesGroup.stats.gpu.total)+"%"
+                                                    : "No GPU data")
+                                        }
+                                        // DISK  (main: / ; hover mostra anche /home)
+                                        ResCell {
+                                            title: "DISK"
+                                            value: resourcesGroup.stats.disk.root_percent + "%"
+                                            tip: "/: " + resourcesGroup.stats.disk.root_percent + "%\n" +
+                                                "/home: " + resourcesGroup.stats.disk.home_percent + "%"
+                                        }
+                                    }
+
+                                }
+                            }
+
 
 
                             // ====== Pulsanti originali ======
@@ -1409,8 +1335,7 @@ Variants {
                                         onEntered: parent.hovered = true
                                         onExited:  parent.hovered = false
                                         onClicked: {
-                                            runScript(toggleAutolockScript, "toggle")
-                                            switcher.autolockDisabled = !switcher.autolockDisabled
+                                            runScript(toggleAutolockScript)
                                             autolockRecheck.start()
                                         }
                                     }

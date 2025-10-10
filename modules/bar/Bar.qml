@@ -404,11 +404,7 @@ Variants {
 
                     // === Your scripts here ===
                     property string changeWallpaperScript: "$HOME/.config/swaybg/wallpaper.sh"
-                    // Path to the script that restarts hypridle on demand.  This
-                    // script kills any running hypridle and then relaunches it
-                    // without relying on systemd.  It resides in the project
-                    // root.  Adjust the path if you move the script elsewhere.
-                    property string toggleAutolockScript: "/home/oai/share/hyprlock-nvidia-fix.sh"
+                    property string toggleAutolockScript: "$HOME/.config/waybar/scripts/hypridle.sh"
                     // property string openClipboardScript:  "$HOME/.config/waybar/scripts/cliphist.sh"
 
                     // === Nuovi script aggiornamenti (li fornisco nel prossimo messaggio) ===
@@ -924,24 +920,26 @@ Variants {
                             }
 
                             // ===== Arch Tools • RESOURCES (cloned from updatesGroup) =====
-                            // ===== Arch Tools • RESOURCES (robusto nel ColumnLayout) =====
                             Rectangle {
                                 id: resourcesGroup
-                                // stile card come gli update
-                                radius: 10
-                                color: ThemePkg.Theme.surface(0.06)
-                                border.color: moduleBorderColor
-                                border.width: 1
+                                // --- stessi bordi/angoli della card degli update ---
+                                radius: updatesGroup.radius
+                                color: updatesGroup.color
+                                border.width: updatesGroup.border.width
+                                border.color: updatesGroup.border.color
 
-                                // >>> chiave: lasciare che il ColumnLayout decida la larghezza <<<
-                                Layout.fillWidth: true
-                                // altezza dalla colonna interna (così non collassa mai a 0)
-                                property int pad: 8
+                                // --- stesso modello di sizing della card degli update ---
+                                // (usa la stessa pad/col/spaziatura per farla “uguale”)
+                                property int pad: updatesGroup.pad ?? 8
+                                implicitWidth: resourcesCol.implicitWidth + pad * 2
                                 implicitHeight: resourcesCol.implicitHeight + pad * 2
-                                visible: true
-                                z: 1
 
-                                // ===== poll script (immutato) =====
+
+                                // se il contenitore usa ColumnLayout, di solito c'è:
+                                Layout.fillWidth: true
+
+                                // ====== POLLING SCRIPT ======
+                                // mantiene gli ultimi valori buoni (niente flash a 0)
                                 property var stats: ({
                                     cpu: { total: 0, per_core: [] },
                                     gpu: { name: "", total: 0, detail: [] },
@@ -951,45 +949,55 @@ Variants {
 
                                 Timer {
                                     id: resTimer
-                                    running: true; repeat: true; interval: 1500
+                                    running: true
+                                    repeat: true
+                                    interval: 1500
                                     onTriggered: if (!resProc.running) resProc.running = true
                                 }
-                                // usa le stesse import/tipi che usi già negli update (Io.Process o Process)
                                 Io.Process {
                                     id: resProc
-                                    // Use an absolute path for the resources script.  The
-                                    // resources-stat.sh file is provided with this project under
-                                    // /home/oai/share.  Adjust this path if you relocate the
-                                    // script in your own setup.
-                                    command: ["/bin/bash","-lc","/home/oai/share/resources-stat.sh"]
+                                    // usa lo stesso runner degli update (bash -lc) ma puntato allo script
+                                    command: ["/bin/bash","-lc","$HOME/.config/hypr/scripts/resources-stat.sh"]
                                     stdinEnabled: false
                                     stdout: Io.StdioCollector {
                                         waitForEnd: true
                                         onStreamFinished: {
                                             try {
-                                                const o = JSON.parse(text.trim());
-                                                if (o && o.cpu && o.mem && o.disk) resourcesGroup.stats = o;
-                                            } catch(e) { console.warn("resources json parse failed:", e, text); }
-                                            finally { resProc.running = false }
+                                                const obj = JSON.parse(text.trim());
+                                                if (obj && obj.cpu && obj.mem && obj.disk) resourcesGroup.stats = obj;
+                                            } catch (e) {
+                                                console.warn("resources json parse failed:", e, text);
+                                            } finally {
+                                                resProc.running = false;
+                                            }
                                         }
                                     }
                                     onExited: resProc.running = false
                                 }
 
-                                // ===== contenuto card =====
+                                // ====== CONTENUTO CARD (stesso layout della card updates) ======
                                 Column {
-                                    id: resourcesCol
+                                    id: resCol
                                     anchors.fill: parent
                                     anchors.margins: resourcesGroup.pad
-                                    spacing: 10
+                                    spacing: 10    // come nella card degli update
 
-                                    Text {
-                                        text: "Resources"
-                                        color: moduleFontColor
-                                        font.pixelSize: 14
-                                        font.family: "Fira Sans Semibold"
+                                    // --- header stile "Updates" ma con titolo Resources ---
+                                    Row {
+                                        spacing: 8
+                                        Layout.fillWidth: true
+                                        QQC2.Label {
+                                            text: "Resources"
+                                            font.pixelSize: 14
+                                            color: ThemePkg.Theme.foreground
+                                            opacity: 0.9
+                                        }
+                                        // se nella card Updates usi un pulsante chip/tondo a destra, puoi copiarlo qui;
+                                        // io non aggiungo controlli extra per non alterare la struttura.
+                                        Item { Layout.fillWidth: true } // spacer
                                     }
 
+                                    // --- griglia 2x2 delle schede (stile “pill” uguale agli update-box) ---
                                     GridLayout {
                                         id: resGrid
                                         columns: 2
@@ -997,45 +1005,41 @@ Variants {
                                         rowSpacing: 12
                                         Layout.fillWidth: true
 
-                                        // metà card con minimo — calcolato sulla larghezza reale del Grid
-                                        readonly property real cellW: Math.max(
-                                            180, (width - columnSpacing) / 2
-                                        )
+                                        // larghezza “a metà card”, con minimo come nelle box degli updates
+                                        readonly property real cellW: Math.max(180, (width - columnSpacing) / 2)
 
-                                        // pill come quelle dei pacchetti (stesso sfondo/bordo)
+                                        // pill riutilizzabile (stesso look delle box degli update)
                                         component ResCell: Rectangle {
+                                            // *** QUI la differenza che evita la compressione ***
                                             Layout.fillWidth: true
                                             Layout.preferredWidth: resGrid.cellW
                                             Layout.minimumWidth: 160
                                             implicitWidth: 180
                                             implicitHeight: 64
 
-                                            color: moduleColor
-                                            border.color: moduleBorderColor
+                                            radius: 18
+                                            color: ThemePkg.Theme.surface(0.06)
+                                            border.color: ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.12)
                                             border.width: 1
-                                            radius: 12   // angoli meno arrotondati come richiesto
 
                                             property string title: ""
                                             property string value: ""
                                             property string tip: ""
 
                                             HoverHandler { id: hov }
-                                            QQC2.ToolTip.visible: hov.hovered
-                                            QQC2.ToolTip.delay: 0
-                                            QQC2.ToolTip.timeout: 60000
-                                            QQC2.ToolTip.text: tip
+                                            ToolTip.visible: hov.hovered
+                                            ToolTip.delay: 0
+                                            ToolTip.timeout: 60000
+                                            ToolTip.text: tip
 
-                                            // contenuto centrato
                                             Column {
-                                                anchors.centerIn: parent
-                                                width: parent.width - 24
-                                                spacing: 6
+                                                anchors.fill: parent
+                                                anchors.margins: 12
+                                                spacing: 4
                                                 Text {
                                                     text: parent.parent.title
                                                     color: ThemePkg.Theme.withAlpha(moduleFontColor, 0.8)
                                                     font.pixelSize: 12
-                                                    width: parent.width
-                                                    horizontalAlignment: Text.AlignHCenter
                                                     elide: Text.ElideRight
                                                 }
                                                 Text {
@@ -1043,8 +1047,6 @@ Variants {
                                                     color: moduleFontColor
                                                     font.pixelSize: 20
                                                     font.bold: true
-                                                    width: parent.width
-                                                    horizontalAlignment: Text.AlignHCenter
                                                     elide: Text.ElideRight
                                                 }
                                             }
@@ -1059,19 +1061,12 @@ Variants {
                                                     .map((v,i)=>"C"+i+": "+Math.round(v)+"%").join("   ")
                                                 : "Collecting per-core…"
                                         }
-                                        // RAM: display memory utilisation as a percentage.  The
-                                        // resources script reports the RAM percentage used as
-                                        // `mem.percent`.  Use this for the primary label and
-                                        // include the used/total GB in the tooltip for detail.
+                                        // RAM  (mostra i GB come da richiesta iniziale)
                                         ResCell {
                                             title: "RAM"
-                                            value: (resourcesGroup.stats.mem && !isNaN(resourcesGroup.stats.mem.percent))
-                                                ? Math.round(resourcesGroup.stats.mem.percent) + "%"
-                                                : "–"
-                                            tip: {
-                                                const m = resourcesGroup.stats.mem || { used_gb: 0, total_gb: 0 };
-                                                return "Used: " + m.used_gb.toFixed(1) + " / " + m.total_gb.toFixed(1) + " GB";
-                                            }
+                                            value: resourcesGroup.stats.mem.used_gb.toFixed(1) + " GB"
+                                            tip: "Used: " + resourcesGroup.stats.mem.used_gb.toFixed(1) +
+                                                " / " + resourcesGroup.stats.mem.total_gb.toFixed(1) + " GB"
                                         }
                                         // GPU
                                         ResCell {
@@ -1085,21 +1080,17 @@ Variants {
                                                     Math.round(resourcesGroup.stats.gpu.total)+"%"
                                                     : "No GPU data")
                                         }
-                                        // Disk usage: show the root partition utilisation percentage.
+                                        // DISK  (main: / ; hover mostra anche /home)
                                         ResCell {
-                                            title: "Disk"
-                                            value: (resourcesGroup.stats.disk && resourcesGroup.stats.disk.root_percent !== undefined)
-                                                ? resourcesGroup.stats.disk.root_percent + "%"
-                                                : "–"
-                                            tip: {
-                                                const d = resourcesGroup.stats.disk || { root_percent: 0, home_percent: 0 };
-                                                return "/: " + d.root_percent + "%\n/home: " + d.home_percent + "%";
-                                            }
+                                            title: "DISK"
+                                            value: resourcesGroup.stats.disk.root_percent + "%"
+                                            tip: "/: " + resourcesGroup.stats.disk.root_percent + "%\n" +
+                                                "/home: " + resourcesGroup.stats.disk.home_percent + "%"
                                         }
                                     }
+
                                 }
                             }
-
 
                             // ======================
                             // BLOCCO AGGIORNAMENTI
@@ -1352,12 +1343,7 @@ Variants {
 
                                 // Change wallpaper
                                 Rectangle {
-                                    // Make the icon container square so that the glyph stays
-                                    // perfectly centered regardless of screen DPI.  A square
-                                    // geometry prevents vertical misalignment on different
-                                    // displays.
-                                    width: 36
-                                    height: 36
+                                    width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
                                     color: hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08) : moduleColor
@@ -1395,9 +1381,7 @@ Variants {
 
                                 // --- Toggle autolock / Hypridle ---
                                 Rectangle {
-                                    // Make the icon container square for consistent centering.
-                                    width: 36
-                                    height: 36
+                                    width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
                                     color: switcher.autolockDisabled
@@ -1439,9 +1423,7 @@ Variants {
 
                                 // Open clipboard manager
                                 Rectangle {
-                                    // Make the icon container square for consistent centering.
-                                    width: 36
-                                    height: 36
+                                    width: 36; height: 30
                                     radius: 10
                                     property bool hovered: false
                                     color: hovered ? ThemePkg.Theme.withAlpha(ThemePkg.Theme.foreground, 0.08) : moduleColor
@@ -1505,7 +1487,7 @@ Variants {
                     }
 
                     function applyWallpaper(absPath) {
-                        const cmd = "$HOME/.config/swaybg/wallpaper.sh " + shQuote(absPath);
+                        const cmd = "$HOME/.config/swww/wallpaper.sh " + shQuote(absPath);
                         setProc.exec(["bash", "-lc", cmd]);
                     }
 

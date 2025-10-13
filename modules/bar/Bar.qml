@@ -15,6 +15,7 @@ import Quickshell.Io as Io
 import QtQuick.Controls as QQC2
 
 
+
 // Create a proper panel window
 Variants {
     id: bar
@@ -146,6 +147,7 @@ Variants {
                              : which === "power"          ? powerComp
                              : which === "arch"           ? archComp
                              : which === "wallpaper"      ? wallpaperComp
+                             : which === "calendar"       ? calendarComp
                              : null;
                     }
 
@@ -170,6 +172,34 @@ Variants {
                         z: 2
                         Behavior on opacity { NumberAnimation { duration: switcher.dur; easing.type: Easing.OutCubic } }
                         Behavior on scale   { NumberAnimation { duration: switcher.dur; easing.type: Easing.OutCubic } }
+                    }
+                    // Esempio: dentro il container overlay dove già carichi Arch Tools
+                    Loader {
+                        id: calendarPopupLoader
+                        // usa la *stessa condizione* che usi per Arch Tools, cambiando la chiave
+                        // Se Arch Tools è: active: switcher.current === "arch"
+                        // qui fai:
+                        active: switcher.current === "calendar"
+                        source: Qt.resolvedUrl("widgets/CalendarPopup.qml")
+                        onStatusChanged: if (status === Loader.Error) console.log("Calendar load error:", errorString())
+                        onLoaded: {
+                            // ancoraggi/finestra
+                            item.timeButton    = timeButton
+                            item.overlayWindow = overlayWindow
+
+                            // === COLORI: leggi direttamente dal modulo orologio ===
+                            // (questi id esistono già nel tuo blocco timeButton)
+                            item.bgColor     = timeButton.color
+                            item.borderColor = timeButton.border.color
+                            item.textColor   = timeDisplay.color
+
+                            // Accent del modulo (se lo hai; altrimenti resta il fallback in QML)
+                            if (typeof moduleAccentColor !== "undefined")
+                                item.accentColor = moduleAccentColor
+
+                            console.log("[Calendar Loader] colors ->",
+                                        item.bgColor, item.borderColor, item.textColor, item.accentColor)
+                        }
                     }
 
                     property int activeIndex: 0
@@ -238,6 +268,30 @@ Variants {
                         // NB: per l'IPC le firme vanno tipizzate
                         function toggle(): void { switcher.toggle("power") }
                     }
+
+                    // Scorciatoia da tastiera per il wallpaper popup (facoltativa)
+                    GlobalShortcut {
+                        appid: "quickshell"              // usa lo stesso appid che già usi
+                        name: "wallpaper-toggle"         // univoco per appid
+                        description: "Toggle wallpaper picker"
+                        onPressed: switcher.toggle("wallpaper")
+                    }
+
+                    // Endpoint IPC identico a "power", ma target = "wallpaper"
+                    IpcHandler {
+                        target: "wallpaper"
+
+                        function toggle(): void { switcher.toggle("wallpaper") }
+                        function open(): void   { switcher.open("wallpaper") }
+                        function close(): void  { switcher.close() }
+                    }
+
+                    IpcHandler {
+                        target: "calendar"
+                        function toggle(): void { switcher.toggle("calendar") }
+                    }
+
+
                 }
             }
 
@@ -395,6 +449,25 @@ Variants {
                     }
                 }
             }
+
+            Component {
+                id: calendarComp
+                Item {
+                    anchors.fill: parent
+
+                    Loader {
+                        id: calLoader
+                        source: Qt.resolvedUrl("widgets/CalendarPopup.qml")
+                        asynchronous: false
+                        onLoaded: {
+                            // Passo i riferimenti reali
+                            item.timeButton     = timeButton       // il tuo rettangolo dell’ora
+                            item.overlayWindow  = overlayWindow    // la PanelWindow dell’overlay
+                        }
+                    }
+                }
+            }
+
 
             // =======================
             // OVERLAY: ARCH (EN tooltips + autolock state via Quickshell.Io.Process)
@@ -1444,152 +1517,155 @@ Variants {
                         onExited: function() { switcher.close(); }
                     }
 
-                    // ---- OVERLAY LAYOUT ----
+
+
+// ---- OVERLAY LAYOUT ----
+Rectangle {
+    id: panel
+    // --- misure card + layout per calcolare W/H compatti ---
+    // --- misura card + layout per una sola riga compatta ---
+    property int cardW: 248
+    property int imgH: 168
+    property int labelH: 20
+    property int cardH: imgH + labelH
+    property int gap:   12
+    property int outer: 16
+    property int showCols: 5   // quante miniature visibili senza scroll
+
+    // larghezza: non oltre (parent.width - 2*outer)
+    width: Math.min(
+                parent.width  - panel.outer*2,
+                panel.outer*2 + panel.showCols*panel.cardW + (panel.showCols-1)*panel.gap
+        )
+
+    // altezza: non oltre (parent.height - 2*outer)
+    height: Math.min(
+                parent.height - panel.outer*2,
+                Math.round(panel.outer*2 + panel.cardH)
+            )
+
+
+    anchors.centerIn: parent
+    radius: 14
+    color: workspaceInactiveColor
+    border.color: moduleBorderColor
+    border.width: 1
+
+    ColumnLayout {
+        anchors.fill: parent
+        anchors.margins: panel.outer
+        spacing: 0
+
+        
+
+        // === Galleria 1xN con scroll orizzontale ===
+        ListView {
+            id: gallery
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.round(panel.cardH)
+            Layout.fillHeight: true
+            clip: true
+            orientation: ListView.Horizontal
+            spacing: 12
+            boundsBehavior: Flickable.StopAtBounds
+            snapMode: ListView.NoSnap
+            interactive: contentWidth > width
+
+            // usa il tuo model già popolato
+            model: wallpapersModel
+
+            // delegate: identico al tuo Repeater, path invariata
+            delegate: Item {
+                width: panel.cardW
+                height: panel.imgH + panel.labelH
+
+                Column {
+                    anchors.fill: parent
+                    spacing: 6
+
+                    // Card immagine (bordo = 1px, padding interno = 4px)
                     Rectangle {
-                        id: panel
-                        width:  Math.min(parent.width  * 0.85, 1200)
-                        height: Math.min(parent.height * 0.80, 820)
-                        anchors.centerIn: parent
-                        radius: 14
+                        id: thumb
+                        width: parent.width
+                        height: panel.imgH
+                        radius: 16
                         color: workspaceInactiveColor
                         border.color: moduleBorderColor
                         border.width: 1
+                        clip: true                // taglia comunque ai bordi esterni
+                        antialiasing: true
+                        layer.enabled: true
+                        layer.smooth: true
 
-                        ColumnLayout {
+                        // padding interno della card
+                        readonly property int pad: 4
+
+                        // contenitore che croppa l'immagine con raggio "interno"
+                        Rectangle {
+                            id: crop
                             anchors.fill: parent
-                            anchors.margins: 16
-                            spacing: 12
+                            anchors.margins: thumb.pad
+                            // raggio interno = raggio esterno − bordo − padding
+                            radius: Math.max(0, thumb.radius - thumb.border.width - thumb.pad)
+                            color: "transparent"
+                            clip: true
+                            antialiasing: true
+                            layer.enabled: true
+                            layer.smooth: true
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 32
-                                spacing: 12
-
-                                Text {
-                                    text: "Choose wallpaper"
-                                    color: moduleFontColor
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                                Rectangle {
-                                    radius: 8; width: 28; height: 28
-                                    color: workspaceActiveColor
-                                    border.color: moduleBorderColor
-                                    Text { anchors.centerIn: parent; text: "✕"; color: moduleFontColor; font.pixelSize: 14 }
-                                    MouseArea { anchors.fill: parent; onClicked: switcher.close(); hoverEnabled: true; cursorShape: Qt.PointingHandCursor }
-                                }
-
+                            Image {
+                                anchors.fill: parent
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
+                                source: "file:" + model.path   // PATH INVARIATA
+                                sourceSize.width: 1024
+                                sourceSize.height: 1024
                             }
-                            Flickable {
-                                id: scroller
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                clip: true
-
-                                // evita “buco” a destra: mai meno largo dello scroller
-                                contentWidth:  Math.max(grid.implicitWidth,  width)
-                                contentHeight: grid.implicitHeight
-                                interactive: true
-
-                                ScrollBar.vertical: ScrollBar {
-                                    id: vbar
-                                    policy: ScrollBar.AsNeeded
-                                    hoverEnabled: true
-                                    implicitWidth: 10
-                                    minimumSize: 0.08
-                                    // attiva le transizioni quando si muove/hover/drag
-                                    active: hovered || pressed || scroller.moving
-
-                                    // binario (track)
-                                    background: Rectangle {
-                                        anchors.fill: parent
-                                        radius: width/2
-                                        color: moduleBorderColor
-                                        border.color: moduleBorderColor
-                                        opacity: vbar.active ? 1.0 : 0.7
-                                    }
-
-                                    // thumb (parte che scorre) con colore interattivo
-                                    contentItem: Rectangle {
-                                        radius: width/2
-                                        border.width: 1
-                                        border.color: moduleBorderColor
-                                        color: moduleFontColor
-                                    }
-                                }
-
-
-                                Grid {
-                                    id: grid
-                                    // parametri card
-                                    property int cardW: 248
-                                    spacing: 12
-
-                                    // ancoriamo in alto a sinistra del contenuto
-                                    anchors.left: parent.left
-                                    anchors.top:  parent.top
-
-                                    // colonne sulla larghezza reale dello scroller (meno un piccolo margine)
-                                    columns: Math.max(1, Math.floor( (scroller.width - spacing) / (cardW + spacing) ))
-
-                                    Repeater {
-                                        model: wallpapersModel
-                                        delegate: Item {
-                                            width: grid.cardW
-                                            height: 168 + 26
-                                            Rectangle {
-                                                anchors.fill: parent
-                                                radius: 16
-                                                color: workspaceInactiveColor
-                                                border.color: moduleBorderColor
-                                                border.width: 1
-                                                clip: true
-                                                Image {
-                                                    anchors.fill: parent
-                                                    anchors.margins: 4
-                                                    fillMode: Image.PreserveAspectCrop
-                                                    asynchronous: true
-                                                    cache: true
-                                                    source: "file:" + model.path
-                                                    sourceSize.width: 1024
-                                                    sourceSize.height: 1024
-                                                }
-                                                Rectangle {
-                                                    anchors.left: parent.left
-                                                    anchors.right: parent.right
-                                                    anchors.bottom: parent.bottom
-                                                    height: 26
-                                                    color: ThemePkg && ThemePkg.Theme
-                                                        ? ThemePkg.Theme.withAlpha(workspaceActiveColor, 0.6)  // 60% opaco
-                                                        : workspaceActiveColor
-                                                    Text {
-                                                        anchors.fill: parent
-                                                        anchors.margins: 8
-                                                        verticalAlignment: Text.AlignVCenter
-                                                        elide: Text.ElideRight
-                                                        text: model.name
-                                                        color: moduleColor
-                                                        font.pixelSize: 12
-                                                    }
-                                                }
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: applyWallpaper(model.path)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-
-
                         }
                     }
+
+
+                    // Etichetta centrata sotto l'immagine, senza banda
+                    Text {
+                        width: parent.width
+                        text: model.name
+                        color: moduleFontColor
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: applyWallpaper(model.path)
+                }
+            }
+
+            
+
+            // Rotellina/gesture -> scorrimento sinistra/destra
+            WheelHandler {
+                acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                onWheel: (e) => {
+                    if (gallery.contentWidth <= gallery.width) { e.accepted = false; return; }
+
+                    const raw = (e.angleDelta.y !== 0 ? e.angleDelta.y : e.angleDelta.x);
+                    const next = gallery.contentX - raw; // rotella su/giù => destra/sinistra
+
+                    const maxX = Math.max(0, gallery.contentWidth - gallery.width);
+                    gallery.contentX = Math.max(0, Math.min(maxX, next)); // CLAMP
+
+                    e.accepted = true;
+                }
+            }
+        }
+    }
+}
+
                 }
             }
 
@@ -2060,6 +2136,14 @@ Variants {
                         border.color: moduleBorderColor
                         border.width: 1 * panel.scaleFactor
                         anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 16 * panel.scaleFactor }
+
+                        // dentro il tuo timeButton
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: switcher.toggle("calendar")
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                        }
 
                         Text {
                             id: timeDisplay

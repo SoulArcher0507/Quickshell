@@ -121,7 +121,33 @@ Scope {
         return "";
     }
 
-    function _themeUrl(name) { return "image://icon/" + name; }
+    // Return a theme-based icon URL.  Using the "theme" provider ensures
+    // icons are fetched from the active icon theme rather than from the
+    // "icon" provider, which has different search semantics.  This is
+    // consistent with the original implementation.
+    function _themeUrl(name) { return "image://theme/" + name; }
+
+    // Generate a list of potential icon names from a given identifier.
+    // This helps resolve cases where the app_icon is a reverse domain name
+    // (e.g. org.telegram.desktop) or contains hyphens/underscores.  It
+    // produces candidates by stripping domain prefixes and splitting on
+    // hyphens.  Each candidate is lower‑cased and sanitized.
+    function _generateIconCandidates(name) {
+        var list = [];
+        if (!name || typeof name !== "string") return list;
+        var n = name.replace(/\s+/g, "-").replace(/_/g, "-").toLowerCase();
+        var parts = n.split('.');
+        for (var i = 0; i < parts.length; ++i) {
+            var suffix = parts.slice(i).join('-');
+            if (suffix && list.indexOf(suffix) === -1) list.push(suffix);
+        }
+        var segs = n.split('-');
+        for (var j = 0; j < segs.length; ++j) {
+            var s = segs[j];
+            if (s && list.indexOf(s) === -1) list.push(s);
+        }
+        return list;
+    }
 
     function iconSourceFor(n) {
         function pick(s){ return (s && typeof s === "string" && s.length > 0) ? s : ""; }
@@ -137,7 +163,7 @@ Scope {
         const explicitPath = pick(h["image-path"]) || pick(h["app_icon"]) || pick(h["image"]) || pick(n.image) || pick(n.appIcon);
         if (explicitPath) {
             const p = explicitPath;
-            let src;
+            let src = "";
             // If explicitPath is a real path or URL, use it directly.  Otherwise
             // try to resolve it as an icon name before falling back to theme.  KDE
             // Connect often provides a simple app_icon like "kdeconnect", so we
@@ -145,18 +171,61 @@ Scope {
             if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http")) {
                 src = (p.startsWith("file:") || p.startsWith("http")) ? p : "file://" + p;
             } else {
-                const guessExplicit = _guessIconFileFromName(p);
-                src = guessExplicit || _themeUrl(p);
+                // Check if explicitPath refers to a desktop-entry ID. Some apps
+                // set app_icon to a desktop file name (e.g. org.telegram.desktop).
+                const dIcon = _readDesktopIcon(p);
+                if (dIcon) {
+                    if (dIcon.startsWith("file:") || dIcon.startsWith("/")) {
+                        src = dIcon.startsWith("file:") ? dIcon : "file://" + dIcon;
+                    } else {
+                        const gdesk = _guessIconFileFromName(dIcon);
+                        src = gdesk || _themeUrl(dIcon.replace(/\.desktop$/, ""));
+                    }
+                }
+                // If not found via desktop entry, attempt to guess directly
+                if (!src) {
+                    const guessExplicit = _guessIconFileFromName(p);
+                    src = guessExplicit;
+                }
+                // Attempt derived candidates when direct guess fails
+                if (!src) {
+                    const cands = _generateIconCandidates(p);
+                    for (var ci = 0; ci < cands.length && !src; ++ci) {
+                        const g = _guessIconFileFromName(cands[ci]);
+                        if (g) { src = g; break; }
+                    }
+                }
+                // Fallback to theme for the first candidate or original
+                if (!src) {
+                    const cands2 = _generateIconCandidates(p);
+                    if (cands2.length > 0) {
+                        src = _themeUrl(cands2[0]);
+                    } else {
+                        src = _themeUrl(p);
+                    }
+                }
             }
             _iconCache[cacheKey] = src; return src;
         }
         const byName = pick(h["icon-name"]) || pick(n.appIconName) || pick(n.iconName);
         if (byName) {
-            const guess = _guessIconFileFromName(byName);
-            const src = guess || ("image://theme/" + byName);
+            // Attempt to resolve byName using file lookups and derived candidates
+            let guess = _guessIconFileFromName(byName);
+            let src = guess;
+            if (!src) {
+                const cands = _generateIconCandidates(byName);
+                for (var ci = 0; ci < cands.length && !src; ++ci) {
+                    const g = _guessIconFileFromName(cands[ci]);
+                    if (g) { src = g; break; }
+                }
+            }
+            if (!src) {
+                const cands2 = _generateIconCandidates(byName);
+                src = (cands2.length > 0) ? ("image://theme/" + cands2[0]) : ("image://theme/" + byName);
+            }
             _iconCache[cacheKey] = src; return src;
         }
-        const desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId);
+        let desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId);
         if (desk) {
             const iconFromDesk = _readDesktopIcon(desk);
             if (iconFromDesk) {
@@ -171,6 +240,28 @@ Scope {
             }
             const src = _themeUrl(desk.replace(/\.desktop$/, ""));
             _iconCache[cacheKey] = src; return src;
+        } else {
+            // No explicit desktop-entry specified.  Try to derive a desktop id
+            // from explicitPath, byName, or appName via candidate generator.
+            const derived = [];
+            if (explicitPath) derived.push.apply(derived, _generateIconCandidates(explicitPath));
+            if (byName)       derived.push.apply(derived, _generateIconCandidates(byName));
+            const appn2 = pick(n.appName);
+            if (appn2) derived.push.apply(derived, _generateIconCandidates(appn2));
+            for (var di = 0; di < derived.length; ++di) {
+                const c = derived[di];
+                const iconFromDesk2 = _readDesktopIcon(c);
+                if (iconFromDesk2) {
+                    let src;
+                    if (iconFromDesk2.startsWith("file:") || iconFromDesk2.startsWith("/")) {
+                        src = iconFromDesk2.startsWith("file:") ? iconFromDesk2 : "file://" + iconFromDesk2;
+                    } else {
+                        const g = _guessIconFileFromName(iconFromDesk2);
+                        src = g || _themeUrl(iconFromDesk2.replace(/\.desktop$/, ""));
+                    }
+                    _iconCache[cacheKey] = src; return src;
+                }
+            }
         }
         const appn = pick(n.appName);
         if (appn) {
@@ -394,7 +485,35 @@ Scope {
                                     }
                                     if (!fallback) {
                                         const byName = (toast.n && (toast.n.appIconName || toast.n.iconName)) || h["icon-name"] || "";
-                                        fallback = root._guessIconFileFromName(byName);
+                                        // Try to guess from provided name and derived candidates
+                                        let guess = root._guessIconFileFromName(byName);
+                                        if (!guess && byName) {
+                                            const cands = root._generateIconCandidates(byName);
+                                            for (var ci = 0; ci < cands.length && !guess; ++ci) {
+                                                const g = root._guessIconFileFromName(cands[ci]);
+                                                if (g) { guess = g; break; }
+                                            }
+                                        }
+                                        fallback = guess || fallback;
+                                        // Try explicit field names as icon names (non path) when above fails
+                                        if (!fallback) {
+                                            const explicit = (toast.n && (toast.n.appIcon || toast.n.image)) || "";
+                                            if (explicit && typeof explicit === "string") {
+                                                const isPathLike = explicit.startsWith("file:") || explicit.startsWith("/") || explicit.includes(":");
+                                                if (!isPathLike) {
+                                                    let g2 = root._guessIconFileFromName(explicit);
+                                                    if (!g2) {
+                                                        // Derive candidates
+                                                        const cand2s = root._generateIconCandidates(explicit);
+                                                        for (var j = 0; j < cand2s.length && !g2; ++j) {
+                                                            const g = root._guessIconFileFromName(cand2s[j]);
+                                                            if (g) { g2 = g; break; }
+                                                        }
+                                                    }
+                                                    fallback = g2 || fallback;
+                                                }
+                                            }
+                                        }
                                     }
                                     source = fallback || root._themeUrl("application-x-executable");
                                 }

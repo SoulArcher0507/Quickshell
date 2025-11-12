@@ -299,6 +299,7 @@ Variants {
                             if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id)
                                 switcher.toggle("wallpaper")
                         }
+
                     }
 
                     IpcHandler {

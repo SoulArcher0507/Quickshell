@@ -260,13 +260,22 @@ Variants {
                         appid: "quickshell"         // scegli un appid e non cambiarlo più
                         name: "power-toggle"        // deve essere univoco per appid
                         description: "Toggle power menu"
-                        onPressed: switcher.toggle("power")
+                        onPressed: {
+                            // Only trigger on the active monitor: ensure this bar's monitor matches focused monitor
+                            if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id) {
+                                switcher.toggle("power")
+                            }
+                        }
                     }
 
                     IpcHandler {
                         target: "power"
                         // NB: per l'IPC le firme vanno tipizzate
-                        function toggle(): void { switcher.toggle("power") }
+                        function toggle(): void {
+                            // Only toggle if this bar's monitor is the active monitor
+                            if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id)
+                                switcher.toggle("power")
+                        }
                     }
 
                     // Scorciatoia da tastiera per il wallpaper popup (facoltativa)
@@ -274,21 +283,31 @@ Variants {
                         appid: "quickshell"              // usa lo stesso appid che già usi
                         name: "wallpaper-toggle"         // univoco per appid
                         description: "Toggle wallpaper picker"
-                        onPressed: switcher.toggle("wallpaper")
+                        onPressed: {
+                            // Only trigger on active monitor
+                            if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id) {
+                                switcher.toggle("wallpaper")
+                            }
+                        }
                     }
 
-                    // Endpoint IPC identico a "power", ma target = "wallpaper"
                     IpcHandler {
                         target: "wallpaper"
 
-                        function toggle(): void { switcher.toggle("wallpaper") }
-                        function open(): void   { switcher.open("wallpaper") }
-                        function close(): void  { switcher.close() }
+                        function toggle(): void {   
+                            // Only toggle on active monitor
+                            if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id)
+                                switcher.toggle("wallpaper")
+                        }
                     }
 
                     IpcHandler {
                         target: "calendar"
-                        function toggle(): void { switcher.toggle("calendar") }
+                        function toggle(): void {
+                            // Only toggle on active monitor
+                            if (Hyprland.monitorFor(overlayWindow.screen).id === Hyprland.focusedMonitor.id)
+                                switcher.toggle("calendar")
+                        }
                     }
 
 

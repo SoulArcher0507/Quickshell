@@ -14,6 +14,12 @@ import "modules/cliphist" as QSMod
 ShellRoot {
     id: root
 
+    // On completion, kill conflicting tray daemon (kded6) to ensure system tray repopulates correctly
+    Component.onCompleted: {
+        // kill kded6 quietly (-q) if running; helps refresh tray after bar restart
+        Quickshell.execDetached(["killall","-q","kded6"])
+    }
+
     // --- Notification server UNICO ---
     NS.NotificationServer {
         id: notifServer

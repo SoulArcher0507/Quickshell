@@ -121,11 +121,7 @@ Scope {
         return "";
     }
 
-    // Return a theme-based icon URL.  Using the "theme" provider ensures
-    // icons are fetched from the active icon theme rather than from the
-    // "icon" provider, which has different search semantics.  This is
-    // consistent with the original implementation.
-    function _themeUrl(name) { return "image://theme/" + name; }
+    function _themeUrl(name) { return "image://icon/" + name; }
 
     // Generate a list of potential icon names from a given identifier.
     // This helps resolve cases where the app_icon is a reverse domain name
@@ -225,7 +221,7 @@ Scope {
             }
             _iconCache[cacheKey] = src; return src;
         }
-        let desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId);
+        const desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId);
         if (desk) {
             const iconFromDesk = _readDesktopIcon(desk);
             if (iconFromDesk) {
@@ -240,28 +236,6 @@ Scope {
             }
             const src = _themeUrl(desk.replace(/\.desktop$/, ""));
             _iconCache[cacheKey] = src; return src;
-        } else {
-            // No explicit desktop-entry specified.  Try to derive a desktop id
-            // from explicitPath, byName, or appName via candidate generator.
-            const derived = [];
-            if (explicitPath) derived.push.apply(derived, _generateIconCandidates(explicitPath));
-            if (byName)       derived.push.apply(derived, _generateIconCandidates(byName));
-            const appn2 = pick(n.appName);
-            if (appn2) derived.push.apply(derived, _generateIconCandidates(appn2));
-            for (var di = 0; di < derived.length; ++di) {
-                const c = derived[di];
-                const iconFromDesk2 = _readDesktopIcon(c);
-                if (iconFromDesk2) {
-                    let src;
-                    if (iconFromDesk2.startsWith("file:") || iconFromDesk2.startsWith("/")) {
-                        src = iconFromDesk2.startsWith("file:") ? iconFromDesk2 : "file://" + iconFromDesk2;
-                    } else {
-                        const g = _guessIconFileFromName(iconFromDesk2);
-                        src = g || _themeUrl(iconFromDesk2.replace(/\.desktop$/, ""));
-                    }
-                    _iconCache[cacheKey] = src; return src;
-                }
-            }
         }
         const appn = pick(n.appName);
         if (appn) {

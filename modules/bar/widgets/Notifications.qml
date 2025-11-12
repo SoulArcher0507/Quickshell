@@ -180,12 +180,7 @@ Rectangle {
         }
         return "";
     }
-    // Return a theme-based icon URL.  We use the "theme" provider, which
-    // queries the active icon theme for the requested name.  The "icon"
-    // provider has different semantics and may not find icons installed
-    // system‑wide (e.g. apps like Discord).  Reverting to the original
-    // provider improves compatibility.
-    function _themeUrl(name) { return "image://theme/" + name }
+    function _themeUrl(name) { return "image://icon/" + name }
 
     // Generate a list of potential icon names from a given identifier.
     // This helps resolve cases where the app_icon is a reverse domain name
@@ -306,47 +301,22 @@ Rectangle {
         }
 
         // Determine icon from desktop file if available.
-        let desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId);
+        const desk = pick(h["desktop-entry"]) || pick(n.desktopEntry) || pick(n.desktopId)
         if (desk) {
-            const iconFromDesk = _readDesktopIcon(desk);
-            let src = "";
+            const iconFromDesk = _readDesktopIcon(desk)
+            let src = ""
             if (iconFromDesk) {
                 if (iconFromDesk.startsWith("file:") || iconFromDesk.startsWith("/"))
-                    src = iconFromDesk.startsWith("file:") ? iconFromDesk : "file://" + iconFromDesk;
+                    src = iconFromDesk.startsWith("file:") ? iconFromDesk : "file://" + iconFromDesk
                 else {
-                    const g = _guessIconFileFromName(iconFromDesk);
-                    src = g || _themeUrl(iconFromDesk.replace(/\.desktop$/, ""));
+                    const g = _guessIconFileFromName(iconFromDesk)
+                    src = g || _themeUrl(iconFromDesk.replace(/\.desktop$/, ""))
                 }
             } else {
-                src = _themeUrl(desk.replace(/\.desktop$/, ""));
+                src = _themeUrl(desk.replace(/\.desktop$/, ""))
             }
-            _iconCache[cacheKey] = src;
-            return src;
-        } else {
-            // No explicit desktop-entry specified. Try to derive one from appIcon
-            // name, byName, and appName using the candidate generator.  This
-            // helps find icons for apps like Discord where no desktop-entry hint
-            // is provided.
-            const derived = [];
-            if (explicitPath) derived.push.apply(derived, _generateIconCandidates(explicitPath));
-            if (byName)       derived.push.apply(derived, _generateIconCandidates(byName));
-            const appn2 = pick(n.appName);
-            if (appn2) derived.push.apply(derived, _generateIconCandidates(appn2));
-            for (var di = 0; di < derived.length; ++di) {
-                const c = derived[di];
-                const iconFromDesk2 = _readDesktopIcon(c);
-                if (iconFromDesk2) {
-                    let src = "";
-                    if (iconFromDesk2.startsWith("file:") || iconFromDesk2.startsWith("/")) {
-                        src = iconFromDesk2.startsWith("file:") ? iconFromDesk2 : "file://" + iconFromDesk2;
-                    } else {
-                        const g = _guessIconFileFromName(iconFromDesk2);
-                        src = g || _themeUrl(iconFromDesk2.replace(/\.desktop$/, ""));
-                    }
-                    _iconCache[cacheKey] = src;
-                    return src;
-                }
-            }
+            _iconCache[cacheKey] = src
+            return src
         }
 
         // Derive an icon from the application name; attempt several variations to handle

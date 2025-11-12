@@ -208,10 +208,16 @@ Rectangle {
         if (explicitPath) {
             const p = explicitPath
             let src
-            if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http"))
+            // If the value looks like a path or URL use it directly; otherwise
+            // try to resolve it as an icon name. KDE Connect sometimes sets
+            // app_icon to a simple name (e.g. "kdeconnect"). In that case,
+            // attempt to locate a real file before falling back to a theme URL.
+            if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http")) {
                 src = p.startsWith("file:") || p.startsWith("http") ? p : "file://" + p
-            else
-                src = _themeUrl(p)
+            } else {
+                const guessExplicit = _guessIconFileFromName(p)
+                src = guessExplicit || _themeUrl(p)
+            }
             _iconCache[cacheKey] = src
             return src
         }

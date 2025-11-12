@@ -138,10 +138,15 @@ Scope {
         if (explicitPath) {
             const p = explicitPath;
             let src;
+            // If explicitPath is a real path or URL, use it directly.  Otherwise
+            // try to resolve it as an icon name before falling back to theme.  KDE
+            // Connect often provides a simple app_icon like "kdeconnect", so we
+            // attempt to locate a real file via _guessIconFileFromName first.
             if (p.startsWith("file:") || p.startsWith("/") || p.startsWith("http")) {
                 src = (p.startsWith("file:") || p.startsWith("http")) ? p : "file://" + p;
             } else {
-                src = _themeUrl(p);
+                const guessExplicit = _guessIconFileFromName(p);
+                src = guessExplicit || _themeUrl(p);
             }
             _iconCache[cacheKey] = src; return src;
         }

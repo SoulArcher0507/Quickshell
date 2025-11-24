@@ -1826,14 +1826,7 @@ Rectangle {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if ((switcher.shownOverlay === "") && (switcher.pendingIndex === -1)) {
-                                    switcher.open("notifications");
-                                } else if (switcher.shownOverlay === "notifications") {
-                                    switcher.close();
-                                } else {
-                                    switcher.swap("notifications");
-                                }
+                            onClicked: {Hyprland.dispatch("exec swaync-client -t")
                             }
                         }
 

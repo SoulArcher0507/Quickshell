@@ -21,7 +21,7 @@ ShellRoot {
     }
 
     // --- Notification server UNICO ---
-    NS.NotificationServer {
+    /*NS.NotificationServer {
         id: notifServer
         bodySupported: true
         bodyMarkupSupported: true
@@ -35,7 +35,7 @@ ShellRoot {
 
         // ⚠️ RIMOSSO l'handler inline "onNotification: function(n) { ... }"
         // perché può non eseguire correttamente / generare warning.
-    }
+    }*/
 
     // --- Marca tracked (se possibile) e fai anche da "canary" che gli eventi arrivano ---
     Connections {
@@ -58,10 +58,10 @@ ShellRoot {
     }
 
     // --- Popup notifiche: istanza diretta, come l'OSD del volume ---
-    Notifications.NotificationPopup {
-        id: notifPopup
-        server: notifServer
-    }
+    //Notifications.NotificationPopup {
+    //    id: notifPopup
+    //    server: notifServer
+    //}
 
     // --- OSD volume: singola istanza. Il compositor sceglie il monitor attivo. ---
     VolumeOverlay { }
